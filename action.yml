@@ -1,0 +1,193 @@
+name: Self-Hosted GitHub Actions Runner on Aruba Cloud
+description: >-
+  Automatically create Aruba Cloud servers and register them as ephemeral
+  self-hosted GitHub Actions runners. Each workflow gets a fresh server;
+  the server is deleted after the job completes.
+author: Aruba Cloud
+
+branding:
+  icon: 'server'
+  color: 'blue'
+
+inputs:
+  mode:
+    description: >-
+      'create' to provision a new runner, 'delete' to terminate it after the job.
+    required: true
+
+  github_token:
+    description: >-
+      GitHub Personal Access Token (PAT) with 'Read and write' access to
+      'Administration' (repo scope for repository runners, admin:org for
+      organisation runners).
+    required: true
+
+  acloud_client_id:
+    description: Aruba Cloud API client ID.
+    required: true
+
+  acloud_client_secret:
+    description: Aruba Cloud API client secret.
+    required: true
+
+  acloud_project_id:
+    description: Aruba Cloud project ID where the server will be created.
+    required: true
+
+  name:
+    description: >-
+      Name for the server and label for the GitHub Actions Runner.
+      Must match '[a-zA-Z0-9_-]{1,64}'.
+      Auto-generated from the run ID when omitted.
+    required: false
+
+  region:
+    description: Aruba Cloud region (e.g. 'ITBG-Bergamo').
+    required: false
+    default: 'ITBG-Bergamo'
+
+  zone:
+    description: Availability zone inside the region (e.g. 'ITBG-1').
+    required: false
+    default: 'ITBG-1'
+
+  flavor:
+    description: >-
+      Server size/flavor code (e.g. 'CSO2A4' = 2 vCPU / 4 GB RAM).
+      See the README for the full flavor reference.
+    required: false
+    default: 'CSO2A4'
+
+  image:
+    description: >-
+      Boot image name (e.g. 'LU22-001' for Ubuntu 22.04).
+      See the README for the full image reference.
+    required: false
+    default: 'LU22-001'
+
+  vpc_uri:
+    description: Resource URI of the VPC to attach the server to.
+    required: false
+
+  subnet_uri:
+    description: Resource URI of the subnet inside the VPC.
+    required: false
+
+  security_group_uri:
+    description: Resource URI of the security group to apply.
+    required: false
+
+  keypair_uri:
+    description: Resource URI of the SSH key pair to inject into the server.
+    required: false
+
+  runner_labels:
+    description: >-
+      Comma-separated list of additional runner labels.
+      'self-hosted' and the server name are always included.
+    required: false
+    default: 'self-hosted,linux,acloud'
+
+  runner_version:
+    description: >-
+      GitHub Actions Runner version (without 'v', e.g. '2.321.0').
+      Use 'latest' to always install the newest release.
+    required: false
+    default: 'latest'
+
+  runner_dir:
+    description: Absolute path where the GitHub Actions Runner is installed on the server.
+    required: false
+    default: '/actions-runner'
+
+  pre_runner_script:
+    description: >-
+      Optional bash commands to execute on the server before the runner starts.
+      Useful for installing extra packages or configuring the environment.
+    required: false
+    default: ''
+
+  runner_wait:
+    description: >-
+      Maximum number of 10-second polling attempts while waiting for the runner
+      to register with GitHub (default: 60 = 10 minutes).
+    required: false
+    default: '60'
+
+  server_wait:
+    description: >-
+      Maximum number of 10-second polling attempts while waiting for the server
+      to reach 'active' status (default: 30 = 5 minutes).
+    required: false
+    default: '30'
+
+  server_id:
+    description: >-
+      Aruba Cloud server ID to delete. Required when mode is 'delete'.
+    required: false
+
+outputs:
+  label:
+    description: >-
+      Runner label to use in the 'runs-on' field of the dependent job.
+      Pass this to the delete step as well to clean up the server.
+    value: ${{ steps.acloud-github-runner.outputs.label }}
+
+  server_id:
+    description: >-
+      Aruba Cloud server ID. Pass this together with project_id to the delete step.
+    value: ${{ steps.acloud-github-runner.outputs.server_id }}
+
+  project_id:
+    description: >-
+      Aruba Cloud project ID that owns the server.
+      A server is uniquely identified by the combination of server_id + project_id;
+      pass both to the delete step.
+    value: ${{ steps.acloud-github-runner.outputs.project_id }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install acloud-cli
+      shell: bash
+      run: |
+        if ! command -v acloud >/dev/null 2>&1; then
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            aarch64|arm64) ACLOUD_ARCH="arm64" ;;
+            *)             ACLOUD_ARCH="amd64"  ;;
+          esac
+          curl -fsSL \
+            "https://github.com/Arubacloud/acloud-cli/releases/latest/download/acloud-linux-${ACLOUD_ARCH}" \
+            -o /tmp/acloud
+          chmod +x /tmp/acloud
+          sudo mv /tmp/acloud /usr/local/bin/acloud
+        fi
+
+    - name: Aruba Cloud GitHub Runner
+      id: acloud-github-runner
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: bash action.sh
+      env:
+        INPUT_MODE:                 ${{ inputs.mode }}
+        INPUT_GITHUB_TOKEN:         ${{ inputs.github_token }}
+        INPUT_ACLOUD_CLIENT_ID:     ${{ inputs.acloud_client_id }}
+        INPUT_ACLOUD_CLIENT_SECRET: ${{ inputs.acloud_client_secret }}
+        INPUT_ACLOUD_PROJECT_ID:    ${{ inputs.acloud_project_id }}
+        INPUT_NAME:                 ${{ inputs.name }}
+        INPUT_REGION:               ${{ inputs.region }}
+        INPUT_ZONE:                 ${{ inputs.zone }}
+        INPUT_FLAVOR:               ${{ inputs.flavor }}
+        INPUT_IMAGE:                ${{ inputs.image }}
+        INPUT_VPC_URI:              ${{ inputs.vpc_uri }}
+        INPUT_SUBNET_URI:           ${{ inputs.subnet_uri }}
+        INPUT_SECURITY_GROUP_URI:   ${{ inputs.security_group_uri }}
+        INPUT_KEYPAIR_URI:          ${{ inputs.keypair_uri }}
+        INPUT_RUNNER_LABELS:        ${{ inputs.runner_labels }}
+        INPUT_RUNNER_VERSION:       ${{ inputs.runner_version }}
+        INPUT_RUNNER_DIR:           ${{ inputs.runner_dir }}
+        INPUT_PRE_RUNNER_SCRIPT:    ${{ inputs.pre_runner_script }}
+        INPUT_RUNNER_WAIT:          ${{ inputs.runner_wait }}
+        INPUT_SERVER_WAIT:          ${{ inputs.server_wait }}
+        INPUT_SERVER_ID:            ${{ inputs.server_id }}
