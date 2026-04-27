@@ -1,0 +1,65 @@
+name: Integration Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  start-runner:
+    name: Start ephemeral runner
+    runs-on: ubuntu-latest
+    outputs:
+      label:      ${{ steps.runner.outputs.label }}
+      server_id:  ${{ steps.runner.outputs.server_id }}
+      project_id: ${{ steps.runner.outputs.project_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./
+        id: runner
+        with:
+          mode:                 create
+          github_token:         ${{ secrets.GH_PAT }}
+          acloud_client_id:     ${{ secrets.ACLOUD_CLIENT_ID }}
+          acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
+          acloud_project_id:    ${{ secrets.ACLOUD_PROJECT_ID }}
+          vpc_uri:              ${{ secrets.ACLOUD_VPC_URI }}
+          subnet_uri:           ${{ secrets.ACLOUD_SUBNET_URI }}
+          security_group_uri:   ${{ secrets.ACLOUD_SECURITY_GROUP_URI }}
+          keypair_uri:          ${{ secrets.ACLOUD_KEYPAIR_URI }}
+          flavor:               CSO2A4
+          image:                LU22-001
+
+  test:
+    name: Run on ephemeral runner
+    needs: start-runner
+    runs-on: ${{ needs.start-runner.outputs.label }}
+    steps:
+      - name: Verify runner environment
+        run: |
+          echo "Running on: $(uname -a)"
+          echo "User: $(whoami)"
+          echo "Runner name: $RUNNER_NAME"
+
+      - name: Verify acloud-cli is not required on ephemeral runner
+        run: echo "Job completed successfully on Aruba Cloud runner."
+
+  stop-runner:
+    name: Stop ephemeral runner
+    needs: [start-runner, test]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          mode:                 delete
+          github_token:         ${{ secrets.GH_PAT }}
+          acloud_client_id:     ${{ secrets.ACLOUD_CLIENT_ID }}
+          acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
+          acloud_project_id:    ${{ needs.start-runner.outputs.project_id }}
+          server_id:            ${{ needs.start-runner.outputs.server_id }}
+          name:                 ${{ needs.start-runner.outputs.label }}

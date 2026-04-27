@@ -2,10 +2,27 @@
 
 set -euo pipefail
 
+# Tracks the server ID once created; used by the EXIT trap to clean up on failure.
+_CREATED_SERVER_ID=""
+
 function exit_with_failure() {
 	echo >&2 "FAILURE: $1"
 	exit 1
 }
+
+# Deletes the server if one was created and we are exiting with a non-zero code.
+function _cleanup_on_exit() {
+	local code=$?
+	[[ $code -eq 0 ]] && return
+	[[ -z "$_CREATED_SERVER_ID" ]] && return
+
+	echo >&2 "Create failed — deleting orphan server '$_CREATED_SERVER_ID'..."
+	acloud compute cloudserver delete "$_CREATED_SERVER_ID" \
+		--project-id "$MY_ACLOUD_PROJECT_ID" \
+		--yes 2>/dev/null \
+		|| echo >&2 "Warning: could not auto-delete server '$_CREATED_SERVER_ID'. Remove it manually from the Aruba Cloud console."
+}
+trap _cleanup_on_exit EXIT
 
 # ─── Required tools ───────────────────────────────────────────────────────────
 
@@ -192,6 +209,7 @@ acloud compute cloudserver create \
 
 MY_ACLOUD_SERVER_ID=$(jq -er '.id' < server-create.json)
 [[ -n "$MY_ACLOUD_SERVER_ID" ]] || exit_with_failure "Could not parse server ID from create response."
+_CREATED_SERVER_ID="$MY_ACLOUD_SERVER_ID"  # arm the EXIT cleanup trap
 
 echo "Server created (ID: $MY_ACLOUD_SERVER_ID)."
 
@@ -256,6 +274,8 @@ done
 if [[ ! "$MY_GITHUB_RUNNER_ID" =~ ^[0-9]+$ ]]; then
 	exit_with_failure "Runner did not register within the timeout. Check cloud-init logs on the server."
 fi
+
+trap - EXIT  # disarm cleanup — server is healthy and runner is registered
 
 echo
 echo "Server and runner are ready."
