@@ -292,10 +292,12 @@ echo "Server created (ID: $MY_ACLOUD_SERVER_ID)."
 
 # Publish outputs immediately so the delete step has all IDs even if
 # later polling fails. Server + project + boot disk are all needed for cleanup.
-echo "label=$MY_NAME"                   >> "$GITHUB_OUTPUT"
-echo "server_id=$MY_ACLOUD_SERVER_ID"   >> "$GITHUB_OUTPUT"
-echo "project_id=$MY_ACLOUD_PROJECT_ID" >> "$GITHUB_OUTPUT"
-echo "boot_disk_id=$MY_BOOT_DISK_ID"    >> "$GITHUB_OUTPUT"
+{
+  echo "label=$MY_NAME"
+  echo "server_id=$MY_ACLOUD_SERVER_ID"
+  echo "project_id=$MY_ACLOUD_PROJECT_ID"
+  echo "boot_disk_id=$MY_BOOT_DISK_ID"
+} >> "$GITHUB_OUTPUT"
 
 # ── Step 4: Poll server until Active ─────────────────────────────────────────
 # Aruba Cloud resources must be "Active" before they can be used.
