@@ -51,9 +51,10 @@ jobs:
     name: Start ephemeral runner
     runs-on: ubuntu-latest
     outputs:
-      label:      ${{ steps.runner.outputs.label }}
-      server_id:  ${{ steps.runner.outputs.server_id }}
-      project_id: ${{ steps.runner.outputs.project_id }}
+      label:        ${{ steps.runner.outputs.label }}
+      server_id:    ${{ steps.runner.outputs.server_id }}
+      project_id:   ${{ steps.runner.outputs.project_id }}
+      boot_disk_id: ${{ steps.runner.outputs.boot_disk_id }}
     steps:
       - uses: Arubacloud/acloud-github-runner@v1
         id: runner
@@ -92,6 +93,7 @@ jobs:
           acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
           acloud_project_id:    ${{ needs.start-runner.outputs.project_id }}
           server_id:            ${{ needs.start-runner.outputs.server_id }}
+          boot_disk_id:         ${{ needs.start-runner.outputs.boot_disk_id }}
 ```
 
 ---
@@ -109,7 +111,11 @@ jobs:
 | `region` | no | `ITBG-Bergamo` | Aruba Cloud region |
 | `zone` | no | `ITBG-1` | Availability zone |
 | `flavor` | no | `CSO2A4` | Server size (see [Flavors](#flavors)) |
-| `image` | no | `LU22-001` | OS image (see [Images](#images)) |
+| `image` | no | `LU22-001` | Boot image used to create the boot disk (see [Images](#images)) |
+| `boot_disk_size` | no | `20` | Boot disk size in GB |
+| `boot_disk_type` | no | `Performance` | Boot disk type (`Performance` or `Archive`) |
+| `boot_disk_wait` | no | `30` | Max polling attempts for boot disk `NotUsed` status (×10 s) |
+| `boot_disk_id` | yes (delete) | — | Boot disk ID returned by the create step |
 | `vpc_uri` | yes (create) | — | VPC resource URI |
 | `subnet_uri` | yes (create) | — | Subnet resource URI |
 | `security_group_uri` | yes (create) | — | Security group resource URI |
@@ -129,6 +135,7 @@ jobs:
 | `label` | Runner label — use as the `runs-on` value in your job |
 | `server_id` | Aruba Cloud server ID — pass to the delete step together with `project_id` |
 | `project_id` | Aruba Cloud project ID — a server is uniquely identified by `server_id` + `project_id`; pass both to the delete step |
+| `boot_disk_id` | ID of the boot disk created for the server — pass to the delete step so it is removed together with the server |
 
 ---
 

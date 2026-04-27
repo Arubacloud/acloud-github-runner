@@ -60,10 +60,33 @@ inputs:
 
   image:
     description: >-
-      Boot image name (e.g. 'LU22-001' for Ubuntu 22.04).
+      Boot image used to create the boot disk (e.g. 'LU22-001' for Ubuntu 22.04).
       See the README for the full image reference.
     required: false
     default: 'LU22-001'
+
+  boot_disk_size:
+    description: Boot disk size in GB.
+    required: false
+    default: '20'
+
+  boot_disk_type:
+    description: Boot disk storage type ('Performance' or 'Archive').
+    required: false
+    default: 'Performance'
+
+  boot_disk_wait:
+    description: >-
+      Maximum number of 10-second polling attempts while waiting for the boot
+      disk to reach 'NotUsed' status (default: 30 = 5 minutes).
+    required: false
+    default: '30'
+
+  boot_disk_id:
+    description: >-
+      Boot disk ID to delete. Required when mode is 'delete' and a boot disk
+      was created by the create step.
+    required: false
 
   vpc_uri:
     description: Resource URI of the VPC to attach the server to.
@@ -117,7 +140,7 @@ inputs:
   server_wait:
     description: >-
       Maximum number of 10-second polling attempts while waiting for the server
-      to reach 'active' status (default: 30 = 5 minutes).
+      to reach 'Active' status (default: 30 = 5 minutes).
     required: false
     default: '30'
 
@@ -144,6 +167,12 @@ outputs:
       A server is uniquely identified by the combination of server_id + project_id;
       pass both to the delete step.
     value: ${{ steps.acloud-github-runner.outputs.project_id }}
+
+  boot_disk_id:
+    description: >-
+      ID of the boot disk created for the server. Pass this to the delete step
+      so the disk is removed together with the server.
+    value: ${{ steps.acloud-github-runner.outputs.boot_disk_id }}
 
 runs:
   using: "composite"
@@ -188,6 +217,10 @@ runs:
         INPUT_RUNNER_VERSION:       ${{ inputs.runner_version }}
         INPUT_RUNNER_DIR:           ${{ inputs.runner_dir }}
         INPUT_PRE_RUNNER_SCRIPT:    ${{ inputs.pre_runner_script }}
+        INPUT_BOOT_DISK_SIZE:       ${{ inputs.boot_disk_size }}
+        INPUT_BOOT_DISK_TYPE:       ${{ inputs.boot_disk_type }}
+        INPUT_BOOT_DISK_WAIT:       ${{ inputs.boot_disk_wait }}
+        INPUT_BOOT_DISK_ID:         ${{ inputs.boot_disk_id }}
         INPUT_RUNNER_WAIT:          ${{ inputs.runner_wait }}
         INPUT_SERVER_WAIT:          ${{ inputs.server_wait }}
         INPUT_SERVER_ID:            ${{ inputs.server_id }}

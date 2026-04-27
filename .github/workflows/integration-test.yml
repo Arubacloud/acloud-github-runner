@@ -11,9 +11,10 @@ jobs:
     name: Start ephemeral runner
     runs-on: ubuntu-latest
     outputs:
-      label:      ${{ steps.runner.outputs.label }}
-      server_id:  ${{ steps.runner.outputs.server_id }}
-      project_id: ${{ steps.runner.outputs.project_id }}
+      label:        ${{ steps.runner.outputs.label }}
+      server_id:    ${{ steps.runner.outputs.server_id }}
+      project_id:   ${{ steps.runner.outputs.project_id }}
+      boot_disk_id: ${{ steps.runner.outputs.boot_disk_id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -62,4 +63,5 @@ jobs:
           acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
           acloud_project_id:    ${{ needs.start-runner.outputs.project_id }}
           server_id:            ${{ needs.start-runner.outputs.server_id }}
+          boot_disk_id:         ${{ needs.start-runner.outputs.boot_disk_id }}
           name:                 ${{ needs.start-runner.outputs.label }}
