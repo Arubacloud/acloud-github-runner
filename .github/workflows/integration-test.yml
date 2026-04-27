@@ -2,14 +2,31 @@ name: Integration Test
 
 on:
   workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Server flavor (e.g. CSO2A4, CSO4A8)'
+        required: false
+        default: CSO2A4
+      image:
+        description: 'Boot image (e.g. LU22-001, LU24-001)'
+        required: false
+        default: LU22-001
+
+# Prevent overlapping integration runs — each run creates real cloud resources.
+# Do not cancel in-progress runs; let them finish and clean up first.
+concurrency:
+  group: integration-test
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  # ── Job 1: provision the ephemeral runner ───────────────────────────────────
   start-runner:
     name: Start ephemeral runner
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       label:        ${{ steps.runner.outputs.label }}
       server_id:    ${{ steps.runner.outputs.server_id }}
@@ -30,27 +47,57 @@ jobs:
           subnet_uri:           ${{ secrets.ACLOUD_SUBNET_URI }}
           security_group_uri:   ${{ secrets.ACLOUD_SECURITY_GROUP_URI }}
           keypair_uri:          ${{ secrets.ACLOUD_KEYPAIR_URI }}
-          flavor:               CSO2A4
-          image:                LU22-001
+          name:                 test-${{ github.run_id }}-${{ github.run_attempt }}
+          flavor:               ${{ inputs.flavor }}
+          image:                ${{ inputs.image }}
 
+  # ── Job 2: the actual workload (runs on the ephemeral runner) ───────────────
   test:
     name: Run on ephemeral runner
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
+    timeout-minutes: 10
     steps:
-      - name: Verify runner environment
+      - name: System info
         run: |
-          echo "Running on: $(uname -a)"
-          echo "User: $(whoami)"
-          echo "Runner name: $RUNNER_NAME"
+          echo "=== OS ==="
+          uname -a
+          cat /etc/os-release
+          echo "=== User ==="
+          whoami
+          echo "=== Runner name: $RUNNER_NAME ==="
+          echo "=== Disk ==="
+          df -h /
 
-      - name: Verify acloud-cli is not required on ephemeral runner
-        run: echo "Job completed successfully on Aruba Cloud runner."
+      - name: Verify required tools installed by cloud-init
+        run: |
+          for cmd in curl git jq tar; do
+            if command -v "$cmd" >/dev/null 2>&1; then
+              echo "OK: $cmd found at $(command -v "$cmd")"
+            else
+              echo "FAIL: $cmd not found" && exit 1
+            fi
+          done
 
+      - name: Verify internet connectivity
+        run: |
+          curl -fsSL --max-time 15 https://github.com > /dev/null
+          echo "OK: GitHub reachable"
+
+      - name: Verify runner is ephemeral
+        run: |
+          if [[ "$RUNNER_EPHEMERAL" != "1" ]]; then
+            echo "FAIL: runner is not ephemeral (RUNNER_EPHEMERAL='$RUNNER_EPHEMERAL')"
+            exit 1
+          fi
+          echo "OK: runner is ephemeral"
+
+  # ── Job 3: tear down the runner and cloud resources ─────────────────────────
   stop-runner:
     name: Stop ephemeral runner
     needs: [start-runner, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -65,3 +112,31 @@ jobs:
           server_id:            ${{ needs.start-runner.outputs.server_id }}
           boot_disk_id:         ${{ needs.start-runner.outputs.boot_disk_id }}
           name:                 ${{ needs.start-runner.outputs.label }}
+
+      # Confirm the server is no longer reachable via the API.
+      # We treat "not-found" and "Deleting" as both acceptable final states.
+      - name: Verify server is deleted
+        if: needs.start-runner.outputs.server_id != ''
+        env:
+          ACLOUD_CLIENT_ID:     ${{ secrets.ACLOUD_CLIENT_ID }}
+          ACLOUD_CLIENT_SECRET: ${{ secrets.ACLOUD_CLIENT_SECRET }}
+          ACLOUD_PROJECT_ID:    ${{ needs.start-runner.outputs.project_id }}
+          SERVER_ID:            ${{ needs.start-runner.outputs.server_id }}
+        run: |
+          acloud config set \
+            --client-id     "$ACLOUD_CLIENT_ID" \
+            --client-secret "$ACLOUD_CLIENT_SECRET"
+          acloud context set default --project-id "$ACLOUD_PROJECT_ID"
+
+          STATUS=$(acloud compute cloudserver get "$SERVER_ID" \
+            --output json 2>/dev/null \
+            | jq -r '.status // empty' || echo "not-found")
+
+          echo "Post-delete server status: '${STATUS}'"
+
+          case "$STATUS" in
+            not-found|Deleting)
+              echo "OK: server is being removed." ;;
+            *)
+              echo "WARNING: unexpected server status '$STATUS' — verify manually." ;;
+          esac

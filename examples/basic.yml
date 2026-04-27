@@ -1,0 +1,60 @@
+name: CI on Aruba Cloud
+
+on: [push]
+
+jobs:
+  # ── Provision the ephemeral runner ──────────────────────────────────────────
+  start-runner:
+    name: Start ephemeral runner
+    runs-on: ubuntu-latest
+    outputs:
+      label:        ${{ steps.runner.outputs.label }}
+      server_id:    ${{ steps.runner.outputs.server_id }}
+      project_id:   ${{ steps.runner.outputs.project_id }}
+      boot_disk_id: ${{ steps.runner.outputs.boot_disk_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Arubacloud/acloud-github-runner@v1
+        id: runner
+        with:
+          mode:                 create
+          github_token:         ${{ secrets.GH_PAT }}
+          acloud_client_id:     ${{ secrets.ACLOUD_CLIENT_ID }}
+          acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
+          acloud_project_id:    ${{ secrets.ACLOUD_PROJECT_ID }}
+          vpc_uri:              ${{ secrets.ACLOUD_VPC_URI }}
+          subnet_uri:           ${{ secrets.ACLOUD_SUBNET_URI }}
+          security_group_uri:   ${{ secrets.ACLOUD_SECURITY_GROUP_URI }}
+          keypair_uri:          ${{ secrets.ACLOUD_KEYPAIR_URI }}
+          flavor:               CSO2A4     # 2 vCPU / 4 GB RAM
+          image:                LU22-001   # Ubuntu 22.04 LTS
+
+  # ── Your actual workload ─────────────────────────────────────────────────────
+  build:
+    name: Build
+    needs: start-runner
+    runs-on: ${{ needs.start-runner.outputs.label }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Running on a fresh Aruba Cloud server!"
+
+  # ── Tear down — runs even if build fails ────────────────────────────────────
+  stop-runner:
+    name: Stop ephemeral runner
+    needs: [start-runner, build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Arubacloud/acloud-github-runner@v1
+        with:
+          mode:                 delete
+          github_token:         ${{ secrets.GH_PAT }}
+          acloud_client_id:     ${{ secrets.ACLOUD_CLIENT_ID }}
+          acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
+          acloud_project_id:    ${{ needs.start-runner.outputs.project_id }}
+          server_id:            ${{ needs.start-runner.outputs.server_id }}
+          boot_disk_id:         ${{ needs.start-runner.outputs.boot_disk_id }}
+          name:                 ${{ needs.start-runner.outputs.label }}
