@@ -16,12 +16,17 @@ function _cleanup_on_exit() {
 	local code=$?
 	[[ $code -eq 0 ]] && return
 
+	echo >&2 "--- Cleanup triggered (exit code: $code) ---"
+
 	if [[ -n "$_CREATED_SERVER_ID" ]]; then
 		echo >&2 "Create failed — deleting orphan server '$_CREATED_SERVER_ID'..."
 		acloud compute cloudserver delete "$_CREATED_SERVER_ID" \
 			--project-id "$MY_ACLOUD_PROJECT_ID" \
 			--yes 2>/dev/null \
+			&& echo >&2 "Server '$_CREATED_SERVER_ID' deleted." \
 			|| echo >&2 "Warning: could not auto-delete server '$_CREATED_SERVER_ID'. Remove it manually."
+		# Wait briefly for the server to release the boot disk before deleting it
+		sleep 10
 	fi
 
 	if [[ -n "$_CREATED_BOOT_DISK_ID" ]]; then
@@ -29,6 +34,7 @@ function _cleanup_on_exit() {
 		acloud storage blockstorage delete "$_CREATED_BOOT_DISK_ID" \
 			--project-id "$MY_ACLOUD_PROJECT_ID" \
 			--yes 2>/dev/null \
+			&& echo >&2 "Boot disk '$_CREATED_BOOT_DISK_ID' deleted." \
 			|| echo >&2 "Warning: could not auto-delete boot disk '$_CREATED_BOOT_DISK_ID'. Remove it manually."
 	fi
 }
@@ -238,7 +244,7 @@ cat boot-disk-create.txt
 
 MY_BOOT_DISK_ID=$(grep -E '^ID:' boot-disk-create.txt | awk '{print $NF}')
 [[ -n "$MY_BOOT_DISK_ID" ]] || exit_with_failure "Could not parse boot disk ID from create response."
-_CREATED_BOOT_DISK_ID="$MY_BOOT_DISK_ID"  # arm cleanup trap
+_CREATED_BOOT_DISK_ID="$MY_BOOT_DISK_ID"  # arm cleanup trap — must be set before any subsequent exit
 
 echo "Boot disk created (ID: $MY_BOOT_DISK_ID). Waiting for 'NotUsed' status..."
 
