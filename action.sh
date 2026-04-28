@@ -327,7 +327,7 @@ while true; do
 
 	# On any failure, print debug output to aid diagnosis
 	echo >&2 "--- Debug output for failed attempt ${_server_create_attempt} ---"
-	_run_cloudserver_create -d >/dev/null || true
+	_run_cloudserver_create -d || true
 
 	# Retry only on transient 5xx errors
 	if echo "$_server_create_err" | grep -qE 'status 5[0-9]{2}'; then
