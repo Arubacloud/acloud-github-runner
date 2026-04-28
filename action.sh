@@ -293,21 +293,53 @@ echo "Boot disk URI: $MY_BOOT_DISK_URI"
 
 # ── Step 3: Create the cloudserver ───────────────────────────────────────────
 
+SERVER_CREATE_MAX_ATTEMPTS=3
+SERVER_CREATE_RETRY_WAIT=15
+
+_run_cloudserver_create() {
+	local extra_flags=("$@")
+	acloud compute cloudserver create \
+		"${extra_flags[@]}" \
+		--name               "$MY_NAME" \
+		--region             "$MY_REGION" \
+		--zone               "$MY_ZONE" \
+		--flavor             "$MY_FLAVOR" \
+		--boot-disk-uri      "$MY_BOOT_DISK_URI" \
+		--vpc-uri            "$MY_VPC_URI" \
+		--subnet-uri         "$MY_SUBNET_URI" \
+		--security-group-uri "$MY_SECURITY_GROUP_URI" \
+		--keypair-uri        "$MY_KEYPAIR_URI" \
+		--user-data-file     cloud-init.yml \
+		--project-id         "$MY_ACLOUD_PROJECT_ID"
+}
+
 echo "Creating Aruba Cloud server '$MY_NAME'..."
-acloud compute cloudserver create \
-	--name               "$MY_NAME" \
-	--region             "$MY_REGION" \
-	--zone               "$MY_ZONE" \
-	--flavor             "$MY_FLAVOR" \
-	--boot-disk-uri      "$MY_BOOT_DISK_URI" \
-	--vpc-uri            "$MY_VPC_URI" \
-	--subnet-uri         "$MY_SUBNET_URI" \
-	--security-group-uri "$MY_SECURITY_GROUP_URI" \
-	--keypair-uri        "$MY_KEYPAIR_URI" \
-	--user-data-file     cloud-init.yml \
-	--project-id         "$MY_ACLOUD_PROJECT_ID" \
-	> server-create.txt \
-	|| exit_with_failure "Failed to create Aruba Cloud server."
+_server_create_attempt=0
+while true; do
+	_server_create_attempt=$(( _server_create_attempt + 1 ))
+	echo "Server create attempt ${_server_create_attempt}/${SERVER_CREATE_MAX_ATTEMPTS}..."
+	if _run_cloudserver_create > server-create.txt 2>&1; then
+		break
+	fi
+
+	_server_create_err=$(cat server-create.txt)
+	echo >&2 "Attempt ${_server_create_attempt} failed: ${_server_create_err}"
+
+	# On any failure, print debug output to aid diagnosis
+	echo >&2 "--- Debug output for failed attempt ${_server_create_attempt} ---"
+	_run_cloudserver_create -d >/dev/null || true
+
+	# Retry only on transient 5xx errors
+	if echo "$_server_create_err" | grep -qE 'status 5[0-9]{2}'; then
+		if [[ $_server_create_attempt -lt $SERVER_CREATE_MAX_ATTEMPTS ]]; then
+			echo "Transient server error — retrying in ${SERVER_CREATE_RETRY_WAIT}s..."
+			sleep "$SERVER_CREATE_RETRY_WAIT"
+			continue
+		fi
+	fi
+
+	exit_with_failure "Failed to create Aruba Cloud server."
+done
 
 cat server-create.txt
 
