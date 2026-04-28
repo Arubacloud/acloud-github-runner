@@ -230,6 +230,7 @@ acloud storage blockstorage create \
 	--size          "$MY_BOOT_DISK_SIZE" \
 	--type          "$MY_BOOT_DISK_TYPE" \
 	--image         "$MY_IMAGE" \
+	--project-id    "$MY_ACLOUD_PROJECT_ID" \
 	--output json > boot-disk-create.json \
 	|| exit_with_failure "Failed to create boot disk."
 
@@ -244,7 +245,7 @@ echo "Boot disk created (ID: $MY_BOOT_DISK_ID). Waiting for 'NotUsed' status..."
 MY_BOOT_DISK_STATUS=""
 RETRY_COUNT=0
 while [[ $RETRY_COUNT -lt $MY_BOOT_DISK_WAIT ]]; do
-	acloud storage blockstorage get "$MY_BOOT_DISK_ID" --output json \
+	acloud storage blockstorage get "$MY_BOOT_DISK_ID" --project-id "$MY_ACLOUD_PROJECT_ID" --output json \
 		> boot-disk-status.json 2>/dev/null || true
 
 	MY_BOOT_DISK_STATUS=$(jq -er '.status // empty' < boot-disk-status.json 2>/dev/null || true)
@@ -281,6 +282,7 @@ acloud compute cloudserver create \
 	--security-group-uri "$MY_SECURITY_GROUP_URI" \
 	--keypair-uri        "$MY_KEYPAIR_URI" \
 	--user-data-file     cloud-init.yml \
+	--project-id         "$MY_ACLOUD_PROJECT_ID" \
 	--output json > server-create.json \
 	|| exit_with_failure "Failed to create Aruba Cloud server."
 
@@ -306,7 +308,7 @@ echo "Waiting for server to become Active..."
 MY_SERVER_STATUS=""
 RETRY_COUNT=0
 while [[ $RETRY_COUNT -lt $MY_SERVER_WAIT ]]; do
-	acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" --output json \
+	acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" --project-id "$MY_ACLOUD_PROJECT_ID" --output json \
 		> server-status.json 2>/dev/null || true
 
 	MY_SERVER_STATUS=$(jq -er '.status // empty' < server-status.json 2>/dev/null || true)
