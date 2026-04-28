@@ -234,7 +234,10 @@ acloud storage blockstorage create \
 	--output json > boot-disk-create.json \
 	|| exit_with_failure "Failed to create boot disk."
 
-MY_BOOT_DISK_ID=$(jq -er '.id' < boot-disk-create.json)
+echo "Boot disk create response:"
+cat boot-disk-create.json
+
+MY_BOOT_DISK_ID=$(jq -er '.id // .ID // empty' < boot-disk-create.json)
 [[ -n "$MY_BOOT_DISK_ID" ]] || exit_with_failure "Could not parse boot disk ID from create response."
 _CREATED_BOOT_DISK_ID="$MY_BOOT_DISK_ID"  # arm cleanup trap
 
