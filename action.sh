@@ -231,13 +231,12 @@ acloud storage blockstorage create \
 	--type          "$MY_BOOT_DISK_TYPE" \
 	--image         "$MY_IMAGE" \
 	--project-id    "$MY_ACLOUD_PROJECT_ID" \
-	--output json > boot-disk-create.json \
+	> boot-disk-create.txt \
 	|| exit_with_failure "Failed to create boot disk."
 
-echo "Boot disk create response:"
-cat boot-disk-create.json
+cat boot-disk-create.txt
 
-MY_BOOT_DISK_ID=$(jq -er '.id // .ID // empty' < boot-disk-create.json)
+MY_BOOT_DISK_ID=$(grep -E '^ID:' boot-disk-create.txt | awk '{print $NF}')
 [[ -n "$MY_BOOT_DISK_ID" ]] || exit_with_failure "Could not parse boot disk ID from create response."
 _CREATED_BOOT_DISK_ID="$MY_BOOT_DISK_ID"  # arm cleanup trap
 
@@ -248,10 +247,10 @@ echo "Boot disk created (ID: $MY_BOOT_DISK_ID). Waiting for 'NotUsed' status..."
 MY_BOOT_DISK_STATUS=""
 RETRY_COUNT=0
 while [[ $RETRY_COUNT -lt $MY_BOOT_DISK_WAIT ]]; do
-	acloud storage blockstorage get "$MY_BOOT_DISK_ID" --project-id "$MY_ACLOUD_PROJECT_ID" --output json \
-		> boot-disk-status.json 2>/dev/null || true
+	acloud storage blockstorage get "$MY_BOOT_DISK_ID" --project-id "$MY_ACLOUD_PROJECT_ID" \
+		> boot-disk-status.txt 2>/dev/null || true
 
-	MY_BOOT_DISK_STATUS=$(jq -er '.status // empty' < boot-disk-status.json 2>/dev/null || true)
+	MY_BOOT_DISK_STATUS=$(grep -E '^Status:' boot-disk-status.txt | awk '{print $NF}' || true)
 
 	if [[ "$MY_BOOT_DISK_STATUS" == "NotUsed" ]]; then
 		echo "Boot disk is ready (NotUsed)."
@@ -267,7 +266,7 @@ done
 	exit_with_failure "Boot disk did not reach 'NotUsed' in time. Check the Aruba Cloud console."
 
 # Get the boot disk URI (required to attach it to the cloudserver)
-MY_BOOT_DISK_URI=$(jq -er '.uri // .URI // empty' < boot-disk-status.json)
+MY_BOOT_DISK_URI=$(grep -E '^URI:' boot-disk-status.txt | awk '{print $NF}')
 [[ -n "$MY_BOOT_DISK_URI" ]] || exit_with_failure "Could not parse boot disk URI from status response."
 echo "Boot disk URI: $MY_BOOT_DISK_URI"
 
@@ -286,10 +285,12 @@ acloud compute cloudserver create \
 	--keypair-uri        "$MY_KEYPAIR_URI" \
 	--user-data-file     cloud-init.yml \
 	--project-id         "$MY_ACLOUD_PROJECT_ID" \
-	--output json > server-create.json \
+	> server-create.txt \
 	|| exit_with_failure "Failed to create Aruba Cloud server."
 
-MY_ACLOUD_SERVER_ID=$(jq -er '.id' < server-create.json)
+cat server-create.txt
+
+MY_ACLOUD_SERVER_ID=$(grep -E '^ID:' server-create.txt | awk '{print $NF}')
 [[ -n "$MY_ACLOUD_SERVER_ID" ]] || exit_with_failure "Could not parse server ID from create response."
 _CREATED_SERVER_ID="$MY_ACLOUD_SERVER_ID"  # arm cleanup trap
 
@@ -311,10 +312,10 @@ echo "Waiting for server to become Active..."
 MY_SERVER_STATUS=""
 RETRY_COUNT=0
 while [[ $RETRY_COUNT -lt $MY_SERVER_WAIT ]]; do
-	acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" --project-id "$MY_ACLOUD_PROJECT_ID" --output json \
-		> server-status.json 2>/dev/null || true
+	acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" --project-id "$MY_ACLOUD_PROJECT_ID" \
+		> server-status.txt 2>/dev/null || true
 
-	MY_SERVER_STATUS=$(jq -er '.status // empty' < server-status.json 2>/dev/null || true)
+	MY_SERVER_STATUS=$(grep -E '^Status:' server-status.txt | awk '{print $NF}' || true)
 
 	if [[ "$MY_SERVER_STATUS" == "Active" ]]; then
 		echo "Server is Active."
