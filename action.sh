@@ -130,14 +130,18 @@ acloud context set default --project-id "$MY_ACLOUD_PROJECT_ID"
 # ─── DELETE ───────────────────────────────────────────────────────────────────
 
 if [[ "$MY_MODE" == "delete" ]]; then
-	[[ -n "$MY_SERVER_ID" ]] || exit_with_failure "server_id is required for delete mode."
-
-	echo "Deleting Aruba Cloud server '$MY_SERVER_ID' (project: $MY_ACLOUD_PROJECT_ID)..."
-	acloud compute cloudserver delete "$MY_SERVER_ID" \
-		--project-id "$MY_ACLOUD_PROJECT_ID" \
-		--yes \
-		|| exit_with_failure "Failed to delete server '$MY_SERVER_ID'."
-	echo "Server deleted."
+	if [[ -n "$MY_SERVER_ID" ]]; then
+		echo "Deleting Aruba Cloud server '$MY_SERVER_ID' (project: $MY_ACLOUD_PROJECT_ID)..."
+		acloud compute cloudserver delete "$MY_SERVER_ID" \
+			--project-id "$MY_ACLOUD_PROJECT_ID" \
+			--yes \
+			|| exit_with_failure "Failed to delete server '$MY_SERVER_ID'."
+		echo "Server deleted."
+		# Wait for the server to release the boot disk before deleting it
+		sleep 10
+	else
+		echo "No server_id provided — skipping server deletion."
+	fi
 
 	if [[ -n "$MY_BOOT_DISK_ID" ]]; then
 		echo "Deleting boot disk '$MY_BOOT_DISK_ID'..."
@@ -177,7 +181,11 @@ if [[ "$MY_MODE" == "delete" ]]; then
 	fi
 
 	echo "Cleanup complete."
-	echo "Aruba Cloud server and boot disk deleted successfully. 🗑️" >> "$GITHUB_STEP_SUMMARY"
+	if [[ -n "$MY_SERVER_ID" || -n "$MY_BOOT_DISK_ID" ]]; then
+		echo "Aruba Cloud resources deleted successfully. 🗑️" >> "$GITHUB_STEP_SUMMARY"
+	else
+		echo "No Aruba Cloud resources to delete." >> "$GITHUB_STEP_SUMMARY"
+	fi
 	exit 0
 fi
 
@@ -246,6 +254,13 @@ MY_BOOT_DISK_ID=$(grep -E '^ID:' boot-disk-create.txt | awk '{print $NF}')
 [[ -n "$MY_BOOT_DISK_ID" ]] || exit_with_failure "Could not parse boot disk ID from create response."
 _CREATED_BOOT_DISK_ID="$MY_BOOT_DISK_ID"  # arm cleanup trap — must be set before any subsequent exit
 
+# Write boot_disk_id and project_id to GITHUB_OUTPUT immediately so stop-runner
+# can delete the disk even if subsequent steps fail.
+{
+  echo "boot_disk_id=$MY_BOOT_DISK_ID"
+  echo "project_id=$MY_ACLOUD_PROJECT_ID"
+} >> "$GITHUB_OUTPUT"
+
 echo "Boot disk created (ID: $MY_BOOT_DISK_ID). Waiting for 'NotUsed' status..."
 
 # ── Step 2: Poll boot disk until NotUsed ─────────────────────────────────────
@@ -300,15 +315,15 @@ MY_ACLOUD_SERVER_ID=$(grep -E '^ID:' server-create.txt | awk '{print $NF}')
 [[ -n "$MY_ACLOUD_SERVER_ID" ]] || exit_with_failure "Could not parse server ID from create response."
 _CREATED_SERVER_ID="$MY_ACLOUD_SERVER_ID"  # arm cleanup trap
 
+# Write server_id to GITHUB_OUTPUT immediately so stop-runner can delete it
+# even if the runner polling timeout or any subsequent step fails.
+echo "server_id=$MY_ACLOUD_SERVER_ID" >> "$GITHUB_OUTPUT"
+
 echo "Server created (ID: $MY_ACLOUD_SERVER_ID)."
 
-# Publish outputs immediately so the delete step has all IDs even if
-# later polling fails. Server + project + boot disk are all needed for cleanup.
+# Write remaining outputs (label already known from the start).
 {
   echo "label=$MY_NAME"
-  echo "server_id=$MY_ACLOUD_SERVER_ID"
-  echo "project_id=$MY_ACLOUD_PROJECT_ID"
-  echo "boot_disk_id=$MY_BOOT_DISK_ID"
 } >> "$GITHUB_OUTPUT"
 
 # ── Step 4: Poll server until Active ─────────────────────────────────────────
