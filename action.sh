@@ -302,6 +302,7 @@ _run_cloudserver_create() {
 		"${extra_flags[@]}" \
 		--name               "$MY_NAME" \
 		--region             "$MY_REGION" \
+		--zone               "$MY_ZONE" \
 		--flavor             "$MY_FLAVOR" \
 		--boot-disk-uri      "$MY_BOOT_DISK_URI" \
 		--vpc-uri            "$MY_VPC_URI" \
