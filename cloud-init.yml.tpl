@@ -11,7 +11,7 @@ runcmd:
   - export RUNNER_ALLOW_RUNASROOT=1
   - bash $MY_RUNNER_DIR/pre_runner_script.sh
   - bash $MY_RUNNER_DIR/runner-install.sh -v "$MY_RUNNER_VERSION" -d "$MY_RUNNER_DIR"
-  - $MY_RUNNER_DIR/config.sh --url "https://github.com/$MY_GITHUB_REPOSITORY" --token "$MY_GITHUB_RUNNER_REGISTRATION_TOKEN" --name "$MY_NAME" --labels "$MY_RUNNER_LABELS" --no-default-labels --ephemeral --disableupdate --unattended
+  - $MY_RUNNER_DIR/config.sh --url "https://github.com/$MY_GITHUB_REPOSITORY" --token "$MY_GITHUB_RUNNER_REGISTRATION_TOKEN" --name "$MY_NAME" --labels "$MY_NAME,$MY_RUNNER_LABELS" --no-default-labels --ephemeral --disableupdate --unattended
   - $MY_RUNNER_DIR/run.sh
 write_files:
   - path: $MY_RUNNER_DIR/pre_runner_script.sh
