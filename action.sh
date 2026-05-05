@@ -375,6 +375,11 @@ while [[ $RETRY_COUNT -lt $MY_SERVER_WAIT ]]; do
 
 	RETRY_COUNT=$((RETRY_COUNT + 1))
 	echo "Server status: '${MY_SERVER_STATUS:-unknown}'. Waiting ${WAIT_SEC}s... (${RETRY_COUNT}/${MY_SERVER_WAIT})"
+	if [[ $RETRY_COUNT -eq 1 ]]; then
+		echo "--- server-status.txt (first poll) ---"
+		cat server-status.txt || true
+		echo "--------------------------------------"
+	fi
 	sleep "$WAIT_SEC"
 done
 
