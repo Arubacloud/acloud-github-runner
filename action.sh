@@ -135,8 +135,8 @@ if [[ "$MY_MODE" == "delete" ]]; then
 		acloud compute cloudserver delete "$MY_SERVER_ID" \
 			--project-id "$MY_ACLOUD_PROJECT_ID" \
 			--yes \
-			|| exit_with_failure "Failed to delete server '$MY_SERVER_ID'."
-		echo "Server deleted."
+			&& echo "Server deleted." \
+			|| echo "Warning: could not delete server '$MY_SERVER_ID' (may already be gone)."
 		# Wait for the server to release the boot disk before deleting it
 		sleep 10
 	else
@@ -148,8 +148,8 @@ if [[ "$MY_MODE" == "delete" ]]; then
 		acloud storage blockstorage delete "$MY_BOOT_DISK_ID" \
 			--project-id "$MY_ACLOUD_PROJECT_ID" \
 			--yes \
-			|| exit_with_failure "Failed to delete boot disk '$MY_BOOT_DISK_ID'."
-		echo "Boot disk deleted."
+			&& echo "Boot disk deleted." \
+			|| echo "Warning: could not delete boot disk '$MY_BOOT_DISK_ID' (may already be gone)."
 	fi
 
 	# Best-effort cleanup of the GitHub runner entry. Ephemeral runners
@@ -302,7 +302,6 @@ _run_cloudserver_create() {
 		"${extra_flags[@]}" \
 		--name               "$MY_NAME" \
 		--region             "$MY_REGION" \
-		--zone               "$MY_ZONE" \
 		--flavor             "$MY_FLAVOR" \
 		--boot-disk-uri      "$MY_BOOT_DISK_URI" \
 		--vpc-uri            "$MY_VPC_URI" \
@@ -327,9 +326,7 @@ while true; do
 
 	# On any failure, print debug output to aid diagnosis
 	echo >&2 "--- Debug output for failed attempt ${_server_create_attempt} ---"
-	_run_cloudserver_create -d || true
-
-	# Retry only on transient 5xx errors
+	_run_cloudserver_create --verbose || true
 	if echo "$_server_create_err" | grep -qE 'status 5[0-9]{2}'; then
 		if [[ $_server_create_attempt -lt $SERVER_CREATE_MAX_ATTEMPTS ]]; then
 			echo "Transient server error — retrying in ${SERVER_CREATE_RETRY_WAIT}s..."
