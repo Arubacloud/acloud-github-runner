@@ -341,7 +341,7 @@ done
 
 cat server-create.txt
 
-MY_ACLOUD_SERVER_ID=$(grep -E '^ID:' server-create.txt | awk '{print $NF}')
+MY_ACLOUD_SERVER_ID=$(awk 'NR==2 {print $1}' server-create.txt)
 [[ -n "$MY_ACLOUD_SERVER_ID" ]] || exit_with_failure "Could not parse server ID from create response."
 _CREATED_SERVER_ID="$MY_ACLOUD_SERVER_ID"  # arm cleanup trap
 
