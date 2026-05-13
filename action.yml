@@ -1,8 +1,5 @@
-name: Self-Hosted GitHub Actions Runner on Aruba Cloud
-description: >-
-  Automatically create Aruba Cloud servers and register them as ephemeral
-  self-hosted GitHub Actions runners. Each workflow gets a fresh server;
-  the server is deleted after the job completes.
+name: "Aruba Cloud GitHub Runner"
+description: "Create ephemeral self-hosted GitHub Actions runners on Aruba Cloud."
 author: Aruba Cloud
 
 branding:
