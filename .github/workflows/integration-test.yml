@@ -33,7 +33,7 @@ jobs:
       project_id:   ${{ steps.runner.outputs.project_id }}
       boot_disk_id: ${{ steps.runner.outputs.boot_disk_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./
         id: runner
@@ -100,7 +100,7 @@ jobs:
     timeout-minutes: 15
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./
         with:
