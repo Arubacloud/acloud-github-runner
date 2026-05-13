@@ -16,12 +16,17 @@ function _cleanup_on_exit() {
 	local code=$?
 	[[ $code -eq 0 ]] && return
 
+	echo >&2 "--- Cleanup triggered (exit code: $code) ---"
+
 	if [[ -n "$_CREATED_SERVER_ID" ]]; then
 		echo >&2 "Create failed — deleting orphan server '$_CREATED_SERVER_ID'..."
 		acloud compute cloudserver delete "$_CREATED_SERVER_ID" \
 			--project-id "$MY_ACLOUD_PROJECT_ID" \
 			--yes 2>/dev/null \
+			&& echo >&2 "Server '$_CREATED_SERVER_ID' deleted." \
 			|| echo >&2 "Warning: could not auto-delete server '$_CREATED_SERVER_ID'. Remove it manually."
+		# Wait briefly for the server to release the boot disk before deleting it
+		sleep 10
 	fi
 
 	if [[ -n "$_CREATED_BOOT_DISK_ID" ]]; then
@@ -29,6 +34,7 @@ function _cleanup_on_exit() {
 		acloud storage blockstorage delete "$_CREATED_BOOT_DISK_ID" \
 			--project-id "$MY_ACLOUD_PROJECT_ID" \
 			--yes 2>/dev/null \
+			&& echo >&2 "Boot disk '$_CREATED_BOOT_DISK_ID' deleted." \
 			|| echo >&2 "Warning: could not auto-delete boot disk '$_CREATED_BOOT_DISK_ID'. Remove it manually."
 	fi
 }
@@ -124,22 +130,26 @@ acloud context set default --project-id "$MY_ACLOUD_PROJECT_ID"
 # ─── DELETE ───────────────────────────────────────────────────────────────────
 
 if [[ "$MY_MODE" == "delete" ]]; then
-	[[ -n "$MY_SERVER_ID" ]] || exit_with_failure "server_id is required for delete mode."
-
-	echo "Deleting Aruba Cloud server '$MY_SERVER_ID' (project: $MY_ACLOUD_PROJECT_ID)..."
-	acloud compute cloudserver delete "$MY_SERVER_ID" \
-		--project-id "$MY_ACLOUD_PROJECT_ID" \
-		--yes \
-		|| exit_with_failure "Failed to delete server '$MY_SERVER_ID'."
-	echo "Server deleted."
+	if [[ -n "$MY_SERVER_ID" ]]; then
+		echo "Deleting Aruba Cloud server '$MY_SERVER_ID' (project: $MY_ACLOUD_PROJECT_ID)..."
+		acloud compute cloudserver delete "$MY_SERVER_ID" \
+			--project-id "$MY_ACLOUD_PROJECT_ID" \
+			--yes \
+			&& echo "Server deleted." \
+			|| echo "Warning: could not delete server '$MY_SERVER_ID' (may already be gone)."
+		# Wait for the server to release the boot disk before deleting it
+		sleep 10
+	else
+		echo "No server_id provided — skipping server deletion."
+	fi
 
 	if [[ -n "$MY_BOOT_DISK_ID" ]]; then
 		echo "Deleting boot disk '$MY_BOOT_DISK_ID'..."
 		acloud storage blockstorage delete "$MY_BOOT_DISK_ID" \
 			--project-id "$MY_ACLOUD_PROJECT_ID" \
 			--yes \
-			|| exit_with_failure "Failed to delete boot disk '$MY_BOOT_DISK_ID'."
-		echo "Boot disk deleted."
+			&& echo "Boot disk deleted." \
+			|| echo "Warning: could not delete boot disk '$MY_BOOT_DISK_ID' (may already be gone)."
 	fi
 
 	# Best-effort cleanup of the GitHub runner entry. Ephemeral runners
@@ -171,7 +181,11 @@ if [[ "$MY_MODE" == "delete" ]]; then
 	fi
 
 	echo "Cleanup complete."
-	echo "Aruba Cloud server and boot disk deleted successfully. 🗑️" >> "$GITHUB_STEP_SUMMARY"
+	if [[ -n "$MY_SERVER_ID" || -n "$MY_BOOT_DISK_ID" ]]; then
+		echo "Aruba Cloud resources deleted successfully. 🗑️" >> "$GITHUB_STEP_SUMMARY"
+	else
+		echo "No Aruba Cloud resources to delete." >> "$GITHUB_STEP_SUMMARY"
+	fi
 	exit 0
 fi
 
@@ -230,12 +244,22 @@ acloud storage blockstorage create \
 	--size          "$MY_BOOT_DISK_SIZE" \
 	--type          "$MY_BOOT_DISK_TYPE" \
 	--image         "$MY_IMAGE" \
-	--output json > boot-disk-create.json \
+	--project-id    "$MY_ACLOUD_PROJECT_ID" \
+	> boot-disk-create.txt \
 	|| exit_with_failure "Failed to create boot disk."
 
-MY_BOOT_DISK_ID=$(jq -er '.id' < boot-disk-create.json)
+cat boot-disk-create.txt
+
+MY_BOOT_DISK_ID=$(grep -E '^ID:' boot-disk-create.txt | awk '{print $NF}')
 [[ -n "$MY_BOOT_DISK_ID" ]] || exit_with_failure "Could not parse boot disk ID from create response."
-_CREATED_BOOT_DISK_ID="$MY_BOOT_DISK_ID"  # arm cleanup trap
+_CREATED_BOOT_DISK_ID="$MY_BOOT_DISK_ID"  # arm cleanup trap — must be set before any subsequent exit
+
+# Write boot_disk_id and project_id to GITHUB_OUTPUT immediately so stop-runner
+# can delete the disk even if subsequent steps fail.
+{
+  echo "boot_disk_id=$MY_BOOT_DISK_ID"
+  echo "project_id=$MY_ACLOUD_PROJECT_ID"
+} >> "$GITHUB_OUTPUT"
 
 echo "Boot disk created (ID: $MY_BOOT_DISK_ID). Waiting for 'NotUsed' status..."
 
@@ -244,10 +268,10 @@ echo "Boot disk created (ID: $MY_BOOT_DISK_ID). Waiting for 'NotUsed' status..."
 MY_BOOT_DISK_STATUS=""
 RETRY_COUNT=0
 while [[ $RETRY_COUNT -lt $MY_BOOT_DISK_WAIT ]]; do
-	acloud storage blockstorage get "$MY_BOOT_DISK_ID" --output json \
-		> boot-disk-status.json 2>/dev/null || true
+	acloud storage blockstorage get "$MY_BOOT_DISK_ID" --project-id "$MY_ACLOUD_PROJECT_ID" \
+		> boot-disk-status.txt 2>/dev/null || true
 
-	MY_BOOT_DISK_STATUS=$(jq -er '.status // empty' < boot-disk-status.json 2>/dev/null || true)
+	MY_BOOT_DISK_STATUS=$(grep -E '^Status:' boot-disk-status.txt | awk '{print $NF}' || true)
 
 	if [[ "$MY_BOOT_DISK_STATUS" == "NotUsed" ]]; then
 		echo "Boot disk is ready (NotUsed)."
@@ -263,39 +287,74 @@ done
 	exit_with_failure "Boot disk did not reach 'NotUsed' in time. Check the Aruba Cloud console."
 
 # Get the boot disk URI (required to attach it to the cloudserver)
-MY_BOOT_DISK_URI=$(jq -er '.uri // .URI // empty' < boot-disk-status.json)
+MY_BOOT_DISK_URI=$(grep -E '^URI:' boot-disk-status.txt | awk '{print $NF}')
 [[ -n "$MY_BOOT_DISK_URI" ]] || exit_with_failure "Could not parse boot disk URI from status response."
 echo "Boot disk URI: $MY_BOOT_DISK_URI"
 
 # ── Step 3: Create the cloudserver ───────────────────────────────────────────
 
-echo "Creating Aruba Cloud server '$MY_NAME'..."
-acloud compute cloudserver create \
-	--name               "$MY_NAME" \
-	--region             "$MY_REGION" \
-	--zone               "$MY_ZONE" \
-	--flavor             "$MY_FLAVOR" \
-	--boot-disk-uri      "$MY_BOOT_DISK_URI" \
-	--vpc-uri            "$MY_VPC_URI" \
-	--subnet-uri         "$MY_SUBNET_URI" \
-	--security-group-uri "$MY_SECURITY_GROUP_URI" \
-	--keypair-uri        "$MY_KEYPAIR_URI" \
-	--user-data-file     cloud-init.yml \
-	--output json > server-create.json \
-	|| exit_with_failure "Failed to create Aruba Cloud server."
+SERVER_CREATE_MAX_ATTEMPTS=3
+SERVER_CREATE_RETRY_WAIT=15
 
-MY_ACLOUD_SERVER_ID=$(jq -er '.id' < server-create.json)
+_run_cloudserver_create() {
+	local extra_flags=("$@")
+	acloud compute cloudserver create \
+		"${extra_flags[@]}" \
+		--name               "$MY_NAME" \
+		--region             "$MY_REGION" \
+		--zone               "$MY_ZONE" \
+		--flavor             "$MY_FLAVOR" \
+		--boot-disk-uri      "$MY_BOOT_DISK_URI" \
+		--vpc-uri            "$MY_VPC_URI" \
+		--subnet-uri         "$MY_SUBNET_URI" \
+		--security-group-uri "$MY_SECURITY_GROUP_URI" \
+		--keypair-uri        "$MY_KEYPAIR_URI" \
+		--user-data-file     cloud-init.yml \
+		--project-id         "$MY_ACLOUD_PROJECT_ID"
+}
+
+echo "Creating Aruba Cloud server '$MY_NAME'..."
+_server_create_attempt=0
+while true; do
+	_server_create_attempt=$(( _server_create_attempt + 1 ))
+	echo "Server create attempt ${_server_create_attempt}/${SERVER_CREATE_MAX_ATTEMPTS}..."
+	if _run_cloudserver_create > server-create.txt 2>&1; then
+		break
+	fi
+
+	_server_create_err=$(cat server-create.txt)
+	echo >&2 "Attempt ${_server_create_attempt} failed: ${_server_create_err}"
+
+	# On any failure, print debug output to aid diagnosis
+	echo >&2 "--- Debug output for failed attempt ${_server_create_attempt} ---"
+	_run_cloudserver_create -d || true
+	if echo "$_server_create_err" | grep -qE 'status 5[0-9]{2}'; then
+		if [[ $_server_create_attempt -lt $SERVER_CREATE_MAX_ATTEMPTS ]]; then
+			echo "Transient server error — retrying in ${SERVER_CREATE_RETRY_WAIT}s..."
+			sleep "$SERVER_CREATE_RETRY_WAIT"
+			continue
+		fi
+	fi
+
+	exit_with_failure "Failed to create Aruba Cloud server."
+done
+
+cat server-create.txt
+
+MY_ACLOUD_SERVER_ID=$(awk 'NR==2 {print $1}' server-create.txt)
 [[ -n "$MY_ACLOUD_SERVER_ID" ]] || exit_with_failure "Could not parse server ID from create response."
 _CREATED_SERVER_ID="$MY_ACLOUD_SERVER_ID"  # arm cleanup trap
 
+# Write server_id to GITHUB_OUTPUT immediately so stop-runner can delete it
+# even if the runner polling timeout or any subsequent step fails.
+echo "server_id=$MY_ACLOUD_SERVER_ID" >> "$GITHUB_OUTPUT"
+
 echo "Server created (ID: $MY_ACLOUD_SERVER_ID)."
 
-# Publish outputs immediately so the delete step has all IDs even if
-# later polling fails. Server + project + boot disk are all needed for cleanup.
-echo "label=$MY_NAME"                   >> "$GITHUB_OUTPUT"
-echo "server_id=$MY_ACLOUD_SERVER_ID"   >> "$GITHUB_OUTPUT"
-echo "project_id=$MY_ACLOUD_PROJECT_ID" >> "$GITHUB_OUTPUT"
-echo "boot_disk_id=$MY_BOOT_DISK_ID"    >> "$GITHUB_OUTPUT"
+# Write remaining outputs (label already known from the start).
+{
+  echo "label=$MY_NAME"
+} >> "$GITHUB_OUTPUT"
 
 # ── Step 4: Poll server until Active ─────────────────────────────────────────
 # Aruba Cloud resources must be "Active" before they can be used.
@@ -304,10 +363,10 @@ echo "Waiting for server to become Active..."
 MY_SERVER_STATUS=""
 RETRY_COUNT=0
 while [[ $RETRY_COUNT -lt $MY_SERVER_WAIT ]]; do
-	acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" --output json \
-		> server-status.json 2>/dev/null || true
+	acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" --project-id "$MY_ACLOUD_PROJECT_ID" \
+		> server-status.txt 2>/dev/null || true
 
-	MY_SERVER_STATUS=$(jq -er '.status // empty' < server-status.json 2>/dev/null || true)
+	MY_SERVER_STATUS=$(grep -E '^Status:' server-status.txt | awk '{print $NF}' || true)
 
 	if [[ "$MY_SERVER_STATUS" == "Active" ]]; then
 		echo "Server is Active."

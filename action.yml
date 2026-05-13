@@ -183,9 +183,13 @@ runs:
             aarch64|arm64) ACLOUD_ARCH="arm64" ;;
             *)             ACLOUD_ARCH="amd64"  ;;
           esac
-          curl -fsSL \
-            "https://github.com/Arubacloud/acloud-cli/releases/latest/download/acloud-linux-${ACLOUD_ARCH}" \
-            -o /tmp/acloud
+          URL="https://github.com/Arubacloud/acloud-cli/releases/latest/download/acloud-linux-${ACLOUD_ARCH}"
+          for attempt in 1 2 3; do
+            echo "Downloading acloud-cli (attempt ${attempt}/3)..."
+            curl -fsSL "$URL" -o /tmp/acloud && break
+            [[ $attempt -lt 3 ]] && sleep 10
+          done
+          [[ -f /tmp/acloud ]] || { echo "Failed to download acloud-cli after 3 attempts."; exit 1; }
           chmod +x /tmp/acloud
           sudo mv /tmp/acloud /usr/local/bin/acloud
         fi

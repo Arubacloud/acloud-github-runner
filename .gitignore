@@ -1,2 +1,5 @@
 # Example/reference projects - not tracked in this repo
 others/
+
+# Local test config (may contain credentials)
+test
