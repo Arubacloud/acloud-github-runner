@@ -1,6 +1,10 @@
-# acloud-github-runner
+# Self-Hosted GitHub Actions Runner on Aruba Cloud
 
 On-demand self-hosted GitHub Actions runners on [Aruba Cloud](https://www.arubacloud.com).
+
+<p align="center">
+  <img src="logo.png" alt="ArubaCloud Logo" width="200"/>
+</p>
 
 Each workflow gets a **fresh, ephemeral cloud server**. The server is created at the start of the job and deleted at the end — no idle costs, no shared state between runs.
 
