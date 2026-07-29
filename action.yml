@@ -86,19 +86,45 @@ inputs:
     required: false
 
   vpc_id:
-    description: ID of the VPC to attach the server to.
+    description: >-
+      ID of the VPC to attach the server to.
+      When omitted, a new VPC is created automatically and deleted by the stop step.
     required: false
 
   subnet_id:
-    description: ID of the subnet inside the VPC.
+    description: >-
+      ID of the subnet inside the VPC.
+      When omitted, a new subnet is created automatically and deleted by the stop step.
     required: false
 
   security_group_id:
-    description: ID of the security group to apply.
+    description: >-
+      ID of the security group to apply.
+      When omitted, a new security group with an egress allow-all rule is created
+      automatically and deleted by the stop step.
     required: false
 
   keypair_id:
     description: ID of the SSH key pair to inject into the server.
+    required: false
+
+  auto_vpc_id:
+    description: >-
+      ID of the VPC that was auto-created by the start step.
+      Pass the 'auto_vpc_id' output from the start step here; the VPC will be
+      deleted together with the server. Leave empty if you provided your own vpc_id.
+    required: false
+
+  auto_subnet_id:
+    description: >-
+      ID of the subnet that was auto-created by the start step.
+      Pass the 'auto_subnet_id' output here to have it deleted on stop.
+    required: false
+
+  auto_security_group_id:
+    description: >-
+      ID of the security group that was auto-created by the start step.
+      Pass the 'auto_security_group_id' output here to have it deleted on stop.
     required: false
 
   runner_labels:
@@ -171,6 +197,24 @@ outputs:
       so the disk is removed together with the server.
     value: ${{ steps.acloud-github-runner.outputs.boot_disk_id }}
 
+  auto_vpc_id:
+    description: >-
+      ID of the VPC that was auto-created by this step (empty if you provided vpc_id).
+      Pass to the delete step as 'auto_vpc_id' to have it cleaned up automatically.
+    value: ${{ steps.acloud-github-runner.outputs.auto_vpc_id }}
+
+  auto_subnet_id:
+    description: >-
+      ID of the subnet that was auto-created by this step (empty if you provided subnet_id).
+      Pass to the delete step as 'auto_subnet_id' to have it cleaned up automatically.
+    value: ${{ steps.acloud-github-runner.outputs.auto_subnet_id }}
+
+  auto_security_group_id:
+    description: >-
+      ID of the security group that was auto-created by this step (empty if you provided
+      security_group_id). Pass to the delete step as 'auto_security_group_id'.
+    value: ${{ steps.acloud-github-runner.outputs.auto_security_group_id }}
+
 runs:
   using: "composite"
   steps:
@@ -222,6 +266,9 @@ runs:
         INPUT_BOOT_DISK_TYPE:       ${{ inputs.boot_disk_type }}
         INPUT_BOOT_DISK_WAIT:       ${{ inputs.boot_disk_wait }}
         INPUT_BOOT_DISK_ID:         ${{ inputs.boot_disk_id }}
-        INPUT_RUNNER_WAIT:          ${{ inputs.runner_wait }}
-        INPUT_SERVER_WAIT:          ${{ inputs.server_wait }}
-        INPUT_SERVER_ID:            ${{ inputs.server_id }}
+        INPUT_RUNNER_WAIT:              ${{ inputs.runner_wait }}
+        INPUT_SERVER_WAIT:              ${{ inputs.server_wait }}
+        INPUT_SERVER_ID:                ${{ inputs.server_id }}
+        INPUT_AUTO_VPC_ID:              ${{ inputs.auto_vpc_id }}
+        INPUT_AUTO_SUBNET_ID:           ${{ inputs.auto_subnet_id }}
+        INPUT_AUTO_SECURITY_GROUP_ID:   ${{ inputs.auto_security_group_id }}
