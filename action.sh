@@ -15,6 +15,43 @@ function exit_with_failure() {
 	exit 1
 }
 
+# Poll a resource (via text output) until its status matches <pattern> or hits a
+# terminal state. Uses 'Status:' line from plain-text acloud output.
+# Usage: _wait_for_status <label> <ready_regex> <timeout_secs> <cmd...>
+function _wait_for_status() {
+	local label="$1" pattern="$2" timeout="$3"; shift 3
+	local interval=5 elapsed=0 status
+	while [[ $elapsed -lt $timeout ]]; do
+		status=$("$@" 2>/dev/null | grep -E '^Status:' | awk '{print $NF}' || true)
+		if [[ "$status" =~ $pattern ]]; then
+			echo "$label is $status."; return 0
+		fi
+		case "$status" in
+			Failed|Error|Deleted)
+				exit_with_failure "$label reached terminal state: $status" ;;
+		esac
+		echo "$label status: '${status:-unknown}'. Waiting ${interval}s... (${elapsed}s/${timeout}s)"
+		sleep "$interval"; elapsed=$(( elapsed + interval ))
+	done
+	exit_with_failure "$label did not become ready within ${timeout}s."
+}
+
+# Poll until the given command exits non-zero (resource no longer exists).
+# Non-fatal: logs a warning and returns if timeout is reached.
+# Usage: _wait_for_removal <label> <timeout_secs> <cmd...>
+function _wait_for_removal() {
+	local label="$1" timeout="$2"; shift 2
+	local interval=5 elapsed=0
+	while [[ $elapsed -lt $timeout ]]; do
+		if ! "$@" >/dev/null 2>&1; then
+			echo "$label removed."; return 0
+		fi
+		echo "Waiting for $label removal... (${elapsed}s/${timeout}s)"
+		sleep "$interval"; elapsed=$(( elapsed + interval ))
+	done
+	echo >&2 "Warning: $label still present after ${timeout}s — continuing."
+}
+
 # On any non-zero exit during CREATE, delete resources in reverse creation order.
 function _cleanup_on_exit() {
 	local code=$?
@@ -211,7 +248,12 @@ if [[ "$MY_MODE" == "delete" ]]; then
 			--yes \
 			&& echo "Subnet deleted." \
 			|| echo "Warning: could not delete subnet '$MY_AUTO_SUBNET_ID'."
-		sleep 10
+		# Wait for the subnet to be fully removed before deleting the parent VPC.
+		if [[ -n "$MY_AUTO_VPC_ID" ]]; then
+			_wait_for_removal "Subnet" 120 \
+				acloud network subnet get "$MY_AUTO_VPC_ID" "$MY_AUTO_SUBNET_ID" \
+				--project-id "$MY_ACLOUD_PROJECT_ID"
+		fi
 	fi
 
 	if [[ -n "$MY_AUTO_VPC_ID" ]]; then
@@ -268,39 +310,48 @@ if [[ -z "$MY_VPC_ID" ]]; then
 		> vpc-create.txt \
 		|| exit_with_failure "Failed to create VPC."
 	cat vpc-create.txt
-	MY_VPC_ID=$(grep -E '^ID:' vpc-create.txt | awk '{print $NF}')
+	MY_VPC_ID=$(grep -oE '[0-9a-f]{24}' vpc-create.txt | tail -1)
 	[[ -n "$MY_VPC_ID" ]] || exit_with_failure "Could not parse VPC ID from create response."
 	_CREATED_VPC_ID="$MY_VPC_ID"
-	echo "VPC created (ID: $MY_VPC_ID)."
+	echo "VPC created (ID: $MY_VPC_ID). Waiting for Active status..."
+	_wait_for_status "VPC" '^(Active|Ready)$' 180 \
+		acloud network vpc get "$MY_VPC_ID" --project-id "$MY_ACLOUD_PROJECT_ID"
 fi
 
 if [[ -z "$MY_SUBNET_ID" ]]; then
 	echo "No subnet_id provided — creating subnet '${MY_NAME}-subnet'..."
 	acloud network subnet create "$MY_VPC_ID" \
-		--name       "${MY_NAME}-subnet" \
-		--region     "$MY_REGION" \
-		--project-id "$MY_ACLOUD_PROJECT_ID" \
+		--name        "${MY_NAME}-subnet" \
+		--region      "$MY_REGION" \
+		--cidr        "10.0.0.0/24" \
+		--dhcp-enabled \
+		--project-id  "$MY_ACLOUD_PROJECT_ID" \
 		> subnet-create.txt \
 		|| exit_with_failure "Failed to create subnet."
 	cat subnet-create.txt
-	MY_SUBNET_ID=$(awk 'NR==2 {print $2}' subnet-create.txt)
+	MY_SUBNET_ID=$(grep -oE '[0-9a-f]{24}' subnet-create.txt | tail -1)
 	[[ -n "$MY_SUBNET_ID" ]] || exit_with_failure "Could not parse subnet ID from create response."
 	_CREATED_SUBNET_ID="$MY_SUBNET_ID"
-	echo "Subnet created (ID: $MY_SUBNET_ID)."
+	echo "Subnet created (ID: $MY_SUBNET_ID). Waiting for Active status..."
+	_wait_for_status "Subnet" '^(Active|Ready)$' 90 \
+		acloud network subnet get "$MY_VPC_ID" "$MY_SUBNET_ID" --project-id "$MY_ACLOUD_PROJECT_ID"
 fi
 
 if [[ -z "$MY_SECURITY_GROUP_ID" ]]; then
 	echo "No security_group_id provided — creating security group '${MY_NAME}-sg'..."
-	acloud network securitygroup create \
+	acloud network securitygroup create "$MY_VPC_ID" \
 		--name       "${MY_NAME}-sg" \
+		--region     "$MY_REGION" \
 		--project-id "$MY_ACLOUD_PROJECT_ID" \
 		> sg-create.txt \
 		|| exit_with_failure "Failed to create security group."
 	cat sg-create.txt
-	MY_SECURITY_GROUP_ID=$(grep -E '^ID:' sg-create.txt | awk '{print $NF}')
+	MY_SECURITY_GROUP_ID=$(grep -oE '[0-9a-f]{24}' sg-create.txt | tail -1)
 	[[ -n "$MY_SECURITY_GROUP_ID" ]] || exit_with_failure "Could not parse security group ID from create response."
 	_CREATED_SECURITY_GROUP_ID="$MY_SECURITY_GROUP_ID"
-	echo "Security group created (ID: $MY_SECURITY_GROUP_ID)."
+	echo "Security group created (ID: $MY_SECURITY_GROUP_ID). Waiting for Active status..."
+	_wait_for_status "Security group" '^(Active|Ready)$' 120 \
+		acloud network securitygroup get "$MY_VPC_ID" "$MY_SECURITY_GROUP_ID" --project-id "$MY_ACLOUD_PROJECT_ID"
 
 	echo "Adding egress rule (allow all outbound)..."
 	acloud network securityrule create "$MY_VPC_ID" "$MY_SECURITY_GROUP_ID" \
@@ -312,6 +363,9 @@ if [[ -z "$MY_SECURITY_GROUP_ID" ]]; then
 		--target-value "0.0.0.0/0" \
 		--project-id   "$MY_ACLOUD_PROJECT_ID" \
 		|| exit_with_failure "Failed to add egress rule to security group."
+	echo "Waiting for security group to be Active after rule update..."
+	_wait_for_status "Security group" '^(Active|Ready)$' 60 \
+		acloud network securitygroup get "$MY_VPC_ID" "$MY_SECURITY_GROUP_ID" --project-id "$MY_ACLOUD_PROJECT_ID"
 fi
 
 # Emit auto-created IDs early so the delete step can clean up even if
