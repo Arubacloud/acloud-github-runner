@@ -220,6 +220,8 @@ runs:
   steps:
     - name: Install acloud-cli
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         if ! command -v acloud >/dev/null 2>&1; then
           ARCH=$(uname -m)
@@ -227,23 +229,14 @@ runs:
             aarch64|arm64) ACLOUD_ARCH="arm64" ;;
             *)             ACLOUD_ARCH="amd64"  ;;
           esac
-          # Resolve the tarball URL for the latest release dynamically so the
-          # install step stays correct across version bumps.
-          # Authenticate to avoid GitHub API rate-limit (403) on shared runners.
-          ASSET_URL=$(curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            https://api.github.com/repos/Arubacloud/acloud-cli/releases/latest \
-            | jq -r ".assets[] | select(.name | test(\"linux_${ACLOUD_ARCH}\\\\.tar\\\\.gz\")) | .browser_download_url")
-          [[ -n "$ASSET_URL" ]] || { echo "Could not resolve acloud-cli download URL."; exit 1; }
-          for attempt in 1 2 3; do
-            echo "Downloading acloud-cli (attempt ${attempt}/3)..."
-            curl -fsSL "$ASSET_URL" -o /tmp/acloud.tar.gz && break
-            [[ $attempt -lt 3 ]] && sleep 10
-          done
-          [[ -f /tmp/acloud.tar.gz ]] || { echo "Failed to download acloud-cli after 3 attempts."; exit 1; }
-          tar -xzf /tmp/acloud.tar.gz -C /tmp acloud
+          echo "Downloading acloud-cli (latest)..."
+          gh release download \
+            --repo Arubacloud/acloud-cli \
+            --pattern "acloud_*_linux_${ACLOUD_ARCH}.tar.gz" \
+            --dir /tmp
+          tar -xzf /tmp/acloud_*_linux_${ACLOUD_ARCH}.tar.gz -C /tmp acloud
           sudo mv /tmp/acloud /usr/local/bin/acloud
-          rm -f /tmp/acloud.tar.gz
+          rm -f /tmp/acloud_*_linux_${ACLOUD_ARCH}.tar.gz
         fi
 
     - name: Aruba Cloud GitHub Runner
