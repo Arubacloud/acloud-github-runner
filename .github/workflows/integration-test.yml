@@ -43,10 +43,10 @@ jobs:
           acloud_client_id:     ${{ secrets.ACLOUD_CLIENT_ID }}
           acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
           acloud_project_id:    ${{ secrets.ACLOUD_PROJECT_ID }}
-          vpc_uri:              ${{ secrets.ACLOUD_VPC_URI }}
-          subnet_uri:           ${{ secrets.ACLOUD_SUBNET_URI }}
-          security_group_uri:   ${{ secrets.ACLOUD_SECURITY_GROUP_URI }}
-          keypair_uri:          ${{ secrets.ACLOUD_KEYPAIR_URI }}
+          vpc_id:               ${{ secrets.ACLOUD_VPC_ID }}
+          subnet_id:            ${{ secrets.ACLOUD_SUBNET_ID }}
+          security_group_id:    ${{ secrets.ACLOUD_SECURITY_GROUP_ID }}
+          keypair_id:           ${{ secrets.ACLOUD_KEYPAIR_ID }}
           name:                 test-${{ github.run_id }}-${{ github.run_attempt }}
           flavor:               ${{ inputs.flavor }}
           image:                ${{ inputs.image }}
@@ -123,13 +123,12 @@ jobs:
           ACLOUD_PROJECT_ID:    ${{ needs.start-runner.outputs.project_id }}
           SERVER_ID:            ${{ needs.start-runner.outputs.server_id }}
         run: |
-          acloud config set \
-            --client-id     "$ACLOUD_CLIENT_ID" \
-            --client-secret "$ACLOUD_CLIENT_SECRET"
+          ACLOUD_CLIENT_SECRET="$ACLOUD_CLIENT_SECRET" \
+            acloud config set --client-id "$ACLOUD_CLIENT_ID"
           acloud context set default --project-id "$ACLOUD_PROJECT_ID"
 
           STATUS=$(acloud compute cloudserver get "$SERVER_ID" \
-            --output json 2>/dev/null \
+            --verbose 2>/dev/null \
             | jq -r '.status // empty' || echo "not-found")
 
           echo "Post-delete server status: '${STATUS}'"

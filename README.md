@@ -68,10 +68,10 @@ jobs:
           acloud_client_id:     ${{ secrets.ACLOUD_CLIENT_ID }}
           acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
           acloud_project_id:    ${{ secrets.ACLOUD_PROJECT_ID }}
-          vpc_uri:              ${{ secrets.ACLOUD_VPC_URI }}
-          subnet_uri:           ${{ secrets.ACLOUD_SUBNET_URI }}
-          security_group_uri:   ${{ secrets.ACLOUD_SECURITY_GROUP_URI }}
-          keypair_uri:          ${{ secrets.ACLOUD_KEYPAIR_URI }}
+          vpc_id:               ${{ secrets.ACLOUD_VPC_ID }}
+          subnet_id:            ${{ secrets.ACLOUD_SUBNET_ID }}
+          security_group_id:    ${{ secrets.ACLOUD_SECURITY_GROUP_ID }}
+          keypair_id:           ${{ secrets.ACLOUD_KEYPAIR_ID }}
           flavor:               CSO2A4
           image:                LU22-001
 
@@ -120,10 +120,10 @@ jobs:
 | `boot_disk_type` | no | `Performance` | Boot disk type (`Performance` or `Archive`) |
 | `boot_disk_wait` | no | `30` | Max polling attempts for boot disk `NotUsed` status (×10 s) |
 | `boot_disk_id` | yes (delete) | — | Boot disk ID returned by the create step |
-| `vpc_uri` | yes (create) | — | VPC resource URI |
-| `subnet_uri` | yes (create) | — | Subnet resource URI |
-| `security_group_uri` | yes (create) | — | Security group resource URI |
-| `keypair_uri` | yes (create) | — | SSH key pair resource URI |
+| `vpc_id` | yes (create) | — | VPC ID |
+| `subnet_id` | yes (create) | — | Subnet ID |
+| `security_group_id` | yes (create) | — | Security group ID |
+| `keypair_id` | no (create) | — | SSH key pair ID |
 | `runner_labels` | no | `self-hosted,linux,acloud` | Extra runner labels (comma-separated) |
 | `runner_version` | no | `latest` | GitHub Actions Runner version |
 | `runner_dir` | no | `/actions-runner` | Runner installation path on server |

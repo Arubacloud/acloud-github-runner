@@ -85,20 +85,20 @@ inputs:
       was created by the create step.
     required: false
 
-  vpc_uri:
-    description: Resource URI of the VPC to attach the server to.
+  vpc_id:
+    description: ID of the VPC to attach the server to.
     required: false
 
-  subnet_uri:
-    description: Resource URI of the subnet inside the VPC.
+  subnet_id:
+    description: ID of the subnet inside the VPC.
     required: false
 
-  security_group_uri:
-    description: Resource URI of the security group to apply.
+  security_group_id:
+    description: ID of the security group to apply.
     required: false
 
-  keypair_uri:
-    description: Resource URI of the SSH key pair to inject into the server.
+  keypair_id:
+    description: ID of the SSH key pair to inject into the server.
     required: false
 
   runner_labels:
@@ -210,10 +210,10 @@ runs:
         INPUT_ZONE:                 ${{ inputs.zone }}
         INPUT_FLAVOR:               ${{ inputs.flavor }}
         INPUT_IMAGE:                ${{ inputs.image }}
-        INPUT_VPC_URI:              ${{ inputs.vpc_uri }}
-        INPUT_SUBNET_URI:           ${{ inputs.subnet_uri }}
-        INPUT_SECURITY_GROUP_URI:   ${{ inputs.security_group_uri }}
-        INPUT_KEYPAIR_URI:          ${{ inputs.keypair_uri }}
+        INPUT_VPC_ID:               ${{ inputs.vpc_id }}
+        INPUT_SUBNET_ID:            ${{ inputs.subnet_id }}
+        INPUT_SECURITY_GROUP_ID:    ${{ inputs.security_group_id }}
+        INPUT_KEYPAIR_ID:           ${{ inputs.keypair_id }}
         INPUT_RUNNER_LABELS:        ${{ inputs.runner_labels }}
         INPUT_RUNNER_VERSION:       ${{ inputs.runner_version }}
         INPUT_RUNNER_DIR:           ${{ inputs.runner_dir }}

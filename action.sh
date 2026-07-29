@@ -87,10 +87,10 @@ MY_IMAGE=${INPUT_IMAGE:-"LU22-001"}
 [[ "$MY_IMAGE" =~ ^[a-zA-Z0-9._-]{1,63}$ ]] || \
 	exit_with_failure "'$MY_IMAGE' is not a valid image name."
 
-MY_VPC_URI=${INPUT_VPC_URI:-""}
-MY_SUBNET_URI=${INPUT_SUBNET_URI:-""}
-MY_SECURITY_GROUP_URI=${INPUT_SECURITY_GROUP_URI:-""}
-MY_KEYPAIR_URI=${INPUT_KEYPAIR_URI:-""}
+MY_VPC_ID=${INPUT_VPC_ID:-""}
+MY_SUBNET_ID=${INPUT_SUBNET_ID:-""}
+MY_SECURITY_GROUP_ID=${INPUT_SECURITY_GROUP_ID:-""}
+MY_KEYPAIR_ID=${INPUT_KEYPAIR_ID:-""}
 
 MY_BOOT_DISK_SIZE=${INPUT_BOOT_DISK_SIZE:-20}
 [[ "$MY_BOOT_DISK_SIZE" =~ ^[0-9]+$ ]] || exit_with_failure "boot_disk_size must be an integer."
@@ -122,9 +122,8 @@ MY_BOOT_DISK_ID=${INPUT_BOOT_DISK_ID:-""}
 # ─── acloud-cli authentication ────────────────────────────────────────────────
 
 echo "Configuring acloud-cli..."
-acloud config set \
-	--client-id     "$MY_ACLOUD_CLIENT_ID" \
-	--client-secret "$MY_ACLOUD_CLIENT_SECRET"
+ACLOUD_CLIENT_SECRET="$MY_ACLOUD_CLIENT_SECRET" \
+	acloud config set --client-id "$MY_ACLOUD_CLIENT_ID"
 acloud context set default --project-id "$MY_ACLOUD_PROJECT_ID"
 
 # ─── DELETE ───────────────────────────────────────────────────────────────────
@@ -191,10 +190,9 @@ fi
 
 # ─── CREATE ───────────────────────────────────────────────────────────────────
 
-[[ -n "$MY_VPC_URI" ]]            || exit_with_failure "vpc_uri is required for create mode."
-[[ -n "$MY_SUBNET_URI" ]]         || exit_with_failure "subnet_uri is required for create mode."
-[[ -n "$MY_SECURITY_GROUP_URI" ]] || exit_with_failure "security_group_uri is required for create mode."
-[[ -n "$MY_KEYPAIR_URI" ]]        || exit_with_failure "keypair_uri is required for create mode."
+[[ -n "$MY_VPC_ID" ]]            || exit_with_failure "vpc_id is required for create mode."
+[[ -n "$MY_SUBNET_ID" ]]         || exit_with_failure "subnet_id is required for create mode."
+[[ -n "$MY_SECURITY_GROUP_ID" ]] || exit_with_failure "security_group_id is required for create mode."
 
 # Get a GitHub runner registration token
 echo "Requesting GitHub runner registration token..."
@@ -268,10 +266,9 @@ echo "Boot disk created (ID: $MY_BOOT_DISK_ID). Waiting for 'NotUsed' status..."
 MY_BOOT_DISK_STATUS=""
 RETRY_COUNT=0
 while [[ $RETRY_COUNT -lt $MY_BOOT_DISK_WAIT ]]; do
-	acloud storage blockstorage get "$MY_BOOT_DISK_ID" --project-id "$MY_ACLOUD_PROJECT_ID" \
-		> boot-disk-status.txt 2>/dev/null || true
-
-	MY_BOOT_DISK_STATUS=$(grep -E '^Status:' boot-disk-status.txt | awk '{print $NF}' || true)
+	MY_BOOT_DISK_STATUS=$(acloud storage blockstorage get "$MY_BOOT_DISK_ID" \
+		--project-id "$MY_ACLOUD_PROJECT_ID" --verbose 2>/dev/null \
+		| jq -r '.status // empty' || true)
 
 	if [[ "$MY_BOOT_DISK_STATUS" == "NotUsed" ]]; then
 		echo "Boot disk is ready (NotUsed)."
@@ -286,11 +283,6 @@ done
 [[ "$MY_BOOT_DISK_STATUS" == "NotUsed" ]] || \
 	exit_with_failure "Boot disk did not reach 'NotUsed' in time. Check the Aruba Cloud console."
 
-# Get the boot disk URI (required to attach it to the cloudserver)
-MY_BOOT_DISK_URI=$(grep -E '^URI:' boot-disk-status.txt | awk '{print $NF}')
-[[ -n "$MY_BOOT_DISK_URI" ]] || exit_with_failure "Could not parse boot disk URI from status response."
-echo "Boot disk URI: $MY_BOOT_DISK_URI"
-
 # ── Step 3: Create the cloudserver ───────────────────────────────────────────
 
 SERVER_CREATE_MAX_ATTEMPTS=3
@@ -298,17 +290,19 @@ SERVER_CREATE_RETRY_WAIT=15
 
 _run_cloudserver_create() {
 	local extra_flags=("$@")
+	local keypair_flag=()
+	[[ -n "$MY_KEYPAIR_ID" ]] && keypair_flag=(--keypair-id "$MY_KEYPAIR_ID")
 	acloud compute cloudserver create \
 		"${extra_flags[@]}" \
 		--name               "$MY_NAME" \
 		--region             "$MY_REGION" \
 		--zone               "$MY_ZONE" \
 		--flavor             "$MY_FLAVOR" \
-		--boot-disk-uri      "$MY_BOOT_DISK_URI" \
-		--vpc-uri            "$MY_VPC_URI" \
-		--subnet-uri         "$MY_SUBNET_URI" \
-		--security-group-uri "$MY_SECURITY_GROUP_URI" \
-		--keypair-uri        "$MY_KEYPAIR_URI" \
+		--boot-disk-id       "$MY_BOOT_DISK_ID" \
+		--vpc-id             "$MY_VPC_ID" \
+		--subnet-id          "$MY_SUBNET_ID" \
+		--security-group-id  "$MY_SECURITY_GROUP_ID" \
+		"${keypair_flag[@]}" \
 		--user-data-file     cloud-init.yml \
 		--project-id         "$MY_ACLOUD_PROJECT_ID"
 }
@@ -325,9 +319,6 @@ while true; do
 	_server_create_err=$(cat server-create.txt)
 	echo >&2 "Attempt ${_server_create_attempt} failed: ${_server_create_err}"
 
-	# On any failure, print debug output to aid diagnosis
-	echo >&2 "--- Debug output for failed attempt ${_server_create_attempt} ---"
-	_run_cloudserver_create -d || true
 	if echo "$_server_create_err" | grep -qE 'status 5[0-9]{2}'; then
 		if [[ $_server_create_attempt -lt $SERVER_CREATE_MAX_ATTEMPTS ]]; then
 			echo "Transient server error — retrying in ${SERVER_CREATE_RETRY_WAIT}s..."
@@ -341,7 +332,7 @@ done
 
 cat server-create.txt
 
-MY_ACLOUD_SERVER_ID=$(awk 'NR==2 {print $1}' server-create.txt)
+MY_ACLOUD_SERVER_ID=$(grep -E '^ID:' server-create.txt | awk '{print $NF}')
 [[ -n "$MY_ACLOUD_SERVER_ID" ]] || exit_with_failure "Could not parse server ID from create response."
 _CREATED_SERVER_ID="$MY_ACLOUD_SERVER_ID"  # arm cleanup trap
 
@@ -363,10 +354,9 @@ echo "Waiting for server to become Active..."
 MY_SERVER_STATUS=""
 RETRY_COUNT=0
 while [[ $RETRY_COUNT -lt $MY_SERVER_WAIT ]]; do
-	acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" --project-id "$MY_ACLOUD_PROJECT_ID" \
-		> server-status.txt 2>/dev/null || true
-
-	MY_SERVER_STATUS=$(grep -E '^Status:' server-status.txt | awk '{print $NF}' || true)
+	MY_SERVER_STATUS=$(acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" \
+		--project-id "$MY_ACLOUD_PROJECT_ID" --verbose 2>/dev/null \
+		| jq -r '.status // empty' || true)
 
 	if [[ "$MY_SERVER_STATUS" == "Active" ]]; then
 		echo "Server is Active."

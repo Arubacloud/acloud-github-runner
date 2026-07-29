@@ -23,10 +23,10 @@ jobs:
           acloud_client_id:     ${{ secrets.ACLOUD_CLIENT_ID }}
           acloud_client_secret: ${{ secrets.ACLOUD_CLIENT_SECRET }}
           acloud_project_id:    ${{ secrets.ACLOUD_PROJECT_ID }}
-          vpc_uri:              ${{ secrets.ACLOUD_VPC_URI }}
-          subnet_uri:           ${{ secrets.ACLOUD_SUBNET_URI }}
-          security_group_uri:   ${{ secrets.ACLOUD_SECURITY_GROUP_URI }}
-          keypair_uri:          ${{ secrets.ACLOUD_KEYPAIR_URI }}
+          vpc_id:               ${{ secrets.ACLOUD_VPC_ID }}
+          subnet_id:            ${{ secrets.ACLOUD_SUBNET_ID }}
+          security_group_id:    ${{ secrets.ACLOUD_SECURITY_GROUP_ID }}
+          keypair_id:           ${{ secrets.ACLOUD_KEYPAIR_ID }}
           flavor:               CSO2A4     # 2 vCPU / 4 GB RAM
           image:                LU22-001   # Ubuntu 22.04 LTS
 
