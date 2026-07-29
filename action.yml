@@ -229,7 +229,10 @@ runs:
           esac
           # Resolve the tarball URL for the latest release dynamically so the
           # install step stays correct across version bumps.
-          ASSET_URL=$(curl -fsSL https://api.github.com/repos/Arubacloud/acloud-cli/releases/latest \
+          # Authenticate to avoid GitHub API rate-limit (403) on shared runners.
+          ASSET_URL=$(curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            https://api.github.com/repos/Arubacloud/acloud-cli/releases/latest \
             | jq -r ".assets[] | select(.name | test(\"linux_${ACLOUD_ARCH}\\\\.tar\\\\.gz\")) | .browser_download_url")
           [[ -n "$ASSET_URL" ]] || { echo "Could not resolve acloud-cli download URL."; exit 1; }
           for attempt in 1 2 3; do
