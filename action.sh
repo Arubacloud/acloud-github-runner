@@ -431,7 +431,7 @@ acloud storage blockstorage create \
 
 cat boot-disk-create.txt
 
-MY_BOOT_DISK_ID=$(grep -E '^ID:' boot-disk-create.txt | awk '{print $NF}')
+MY_BOOT_DISK_ID=$(grep -oE '[0-9a-f]{24}' boot-disk-create.txt | head -1)
 [[ -n "$MY_BOOT_DISK_ID" ]] || exit_with_failure "Could not parse boot disk ID from create response."
 _CREATED_BOOT_DISK_ID="$MY_BOOT_DISK_ID"
 
@@ -446,25 +446,8 @@ echo "Boot disk created (ID: $MY_BOOT_DISK_ID). Waiting for 'NotUsed' status..."
 
 # ── Step 4: Poll boot disk until NotUsed ─────────────────────────────────────
 
-MY_BOOT_DISK_STATUS=""
-RETRY_COUNT=0
-while [[ $RETRY_COUNT -lt $MY_BOOT_DISK_WAIT ]]; do
-	MY_BOOT_DISK_STATUS=$(acloud storage blockstorage get "$MY_BOOT_DISK_ID" \
-		--project-id "$MY_ACLOUD_PROJECT_ID" --verbose 2>/dev/null \
-		| jq -r '.status // empty' || true)
-
-	if [[ "$MY_BOOT_DISK_STATUS" == "NotUsed" ]]; then
-		echo "Boot disk is ready (NotUsed)."
-		break
-	fi
-
-	RETRY_COUNT=$((RETRY_COUNT + 1))
-	echo "Boot disk status: '${MY_BOOT_DISK_STATUS:-unknown}'. Waiting ${WAIT_SEC}s... (${RETRY_COUNT}/${MY_BOOT_DISK_WAIT})"
-	sleep "$WAIT_SEC"
-done
-
-[[ "$MY_BOOT_DISK_STATUS" == "NotUsed" ]] || \
-	exit_with_failure "Boot disk did not reach 'NotUsed' in time. Check the Aruba Cloud console."
+_wait_for_status "Boot disk" '^NotUsed$' $(( MY_BOOT_DISK_WAIT * 10 )) \
+	acloud storage blockstorage get "$MY_BOOT_DISK_ID" --project-id "$MY_ACLOUD_PROJECT_ID"
 
 # ── Step 5: Create the cloudserver ───────────────────────────────────────────
 
@@ -515,7 +498,7 @@ done
 
 cat server-create.txt
 
-MY_ACLOUD_SERVER_ID=$(grep -E '^ID:' server-create.txt | awk '{print $NF}')
+MY_ACLOUD_SERVER_ID=$(grep -oE '[0-9a-f]{24}' server-create.txt | head -1)
 [[ -n "$MY_ACLOUD_SERVER_ID" ]] || exit_with_failure "Could not parse server ID from create response."
 _CREATED_SERVER_ID="$MY_ACLOUD_SERVER_ID"
 
@@ -526,25 +509,8 @@ echo "label=$MY_NAME" >> "$GITHUB_OUTPUT"
 # ── Step 6: Poll server until Active ─────────────────────────────────────────
 
 echo "Waiting for server to become Active..."
-MY_SERVER_STATUS=""
-RETRY_COUNT=0
-while [[ $RETRY_COUNT -lt $MY_SERVER_WAIT ]]; do
-	MY_SERVER_STATUS=$(acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" \
-		--project-id "$MY_ACLOUD_PROJECT_ID" --verbose 2>/dev/null \
-		| jq -r '.status // empty' || true)
-
-	if [[ "$MY_SERVER_STATUS" == "Active" ]]; then
-		echo "Server is Active."
-		break
-	fi
-
-	RETRY_COUNT=$((RETRY_COUNT + 1))
-	echo "Server status: '${MY_SERVER_STATUS:-unknown}'. Waiting ${WAIT_SEC}s... (${RETRY_COUNT}/${MY_SERVER_WAIT})"
-	sleep "$WAIT_SEC"
-done
-
-[[ "$MY_SERVER_STATUS" == "Active" ]] || \
-	exit_with_failure "Server did not reach 'Active' state in time. Check the Aruba Cloud console."
+_wait_for_status "Server" '^Active$' $(( MY_SERVER_WAIT * 10 )) \
+	acloud compute cloudserver get "$MY_ACLOUD_SERVER_ID" --project-id "$MY_ACLOUD_PROJECT_ID"
 
 # ── Step 7: Poll GitHub until runner is registered ────────────────────────────
 
