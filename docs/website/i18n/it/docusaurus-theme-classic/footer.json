@@ -1,0 +1,42 @@
+{
+  "link.item.label.Getting Started": {
+    "message": "Guida Rapida",
+    "description": "Footer link label"
+  },
+  "link.item.label.Inputs & Outputs": {
+    "message": "Input e Output",
+    "description": "Footer link label"
+  },
+  "link.item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Footer link label"
+  },
+  "link.item.label.Issues": {
+    "message": "Segnalazioni",
+    "description": "Footer link label"
+  },
+  "link.item.label.Aruba Cloud": {
+    "message": "Aruba Cloud",
+    "description": "Footer link label"
+  },
+  "link.item.label.acloud-cli docs": {
+    "message": "Documentazione acloud-cli",
+    "description": "Footer link label"
+  },
+  "link.item.label.Changelog": {
+    "message": "Changelog",
+    "description": "Footer link label"
+  },
+  "link.title.Documentation": {
+    "message": "Documentazione",
+    "description": "Footer section title"
+  },
+  "link.title.Community": {
+    "message": "Community",
+    "description": "Footer section title"
+  },
+  "link.title.More": {
+    "message": "Altro",
+    "description": "Footer section title"
+  }
+}
