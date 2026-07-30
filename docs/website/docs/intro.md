@@ -1,7 +1,3 @@
----
-slug: /
----
-
 # ArubaCloud GitHub Runner
 
 > On-demand self-hosted GitHub Actions runners on **Aruba Cloud** — a fresh, ephemeral server for every workflow run.
