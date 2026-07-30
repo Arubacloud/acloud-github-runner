@@ -1,37 +1,37 @@
 {
-  "version-1.0.0/mainSidebar": [
+  "mainSidebar": [
     {
       "type": "doc",
-      "id": "version-1.0.0/intro",
+      "id": "intro",
       "label": "Introduction"
     },
     {
       "type": "doc",
-      "id": "version-1.0.0/getting-started",
+      "id": "getting-started",
       "label": "Getting Started"
     },
     {
       "type": "category",
       "label": "Usage",
       "items": [
-        "version-1.0.0/usage-auto",
-        "version-1.0.0/usage-existing"
+        "usage-auto",
+        "usage-existing"
       ]
     },
     {
       "type": "category",
       "label": "Reference",
       "items": [
-        "version-1.0.0/reference",
-        "version-1.0.0/flavors"
+        "reference",
+        "flavors"
       ]
     },
     {
       "type": "category",
       "label": "Project",
       "items": [
-        "version-1.0.0/contributing",
-        "version-1.0.0/changelog"
+        "contributing",
+        "changelog"
       ]
     }
   ]
