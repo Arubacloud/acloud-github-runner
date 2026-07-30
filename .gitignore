@@ -3,3 +3,9 @@ others/
 
 # Local test config (may contain credentials)
 test
+.tokensave
+
+# Docusaurus
+docs/website/node_modules/
+docs/website/build/
+docs/website/.docusaurus/

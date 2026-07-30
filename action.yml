@@ -75,9 +75,9 @@ inputs:
   boot_disk_wait:
     description: >-
       Maximum number of 10-second polling attempts while waiting for the boot
-      disk to reach 'NotUsed' status (default: 30 = 5 minutes).
+      disk to reach 'NotUsed' status (default: 60 = 10 minutes).
     required: false
-    default: '30'
+    default: '60'
 
   boot_disk_id:
     description: >-
@@ -85,20 +85,46 @@ inputs:
       was created by the create step.
     required: false
 
-  vpc_uri:
-    description: Resource URI of the VPC to attach the server to.
+  vpc_id:
+    description: >-
+      ID of the VPC to attach the server to.
+      When omitted, a new VPC is created automatically and deleted by the stop step.
     required: false
 
-  subnet_uri:
-    description: Resource URI of the subnet inside the VPC.
+  subnet_id:
+    description: >-
+      ID of the subnet inside the VPC.
+      When omitted, a new subnet is created automatically and deleted by the stop step.
     required: false
 
-  security_group_uri:
-    description: Resource URI of the security group to apply.
+  security_group_id:
+    description: >-
+      ID of the security group to apply.
+      When omitted, a new security group with an egress allow-all rule is created
+      automatically and deleted by the stop step.
     required: false
 
-  keypair_uri:
-    description: Resource URI of the SSH key pair to inject into the server.
+  keypair_id:
+    description: ID of the SSH key pair to inject into the server.
+    required: false
+
+  auto_vpc_id:
+    description: >-
+      ID of the VPC that was auto-created by the start step.
+      Pass the 'auto_vpc_id' output from the start step here; the VPC will be
+      deleted together with the server. Leave empty if you provided your own vpc_id.
+    required: false
+
+  auto_subnet_id:
+    description: >-
+      ID of the subnet that was auto-created by the start step.
+      Pass the 'auto_subnet_id' output here to have it deleted on stop.
+    required: false
+
+  auto_security_group_id:
+    description: >-
+      ID of the security group that was auto-created by the start step.
+      Pass the 'auto_security_group_id' output here to have it deleted on stop.
     required: false
 
   runner_labels:
@@ -137,9 +163,9 @@ inputs:
   server_wait:
     description: >-
       Maximum number of 10-second polling attempts while waiting for the server
-      to reach 'Active' status (default: 30 = 5 minutes).
+      to reach 'Active' status (default: 60 = 10 minutes).
     required: false
-    default: '30'
+    default: '60'
 
   server_id:
     description: >-
@@ -171,11 +197,31 @@ outputs:
       so the disk is removed together with the server.
     value: ${{ steps.acloud-github-runner.outputs.boot_disk_id }}
 
+  auto_vpc_id:
+    description: >-
+      ID of the VPC that was auto-created by this step (empty if you provided vpc_id).
+      Pass to the delete step as 'auto_vpc_id' to have it cleaned up automatically.
+    value: ${{ steps.acloud-github-runner.outputs.auto_vpc_id }}
+
+  auto_subnet_id:
+    description: >-
+      ID of the subnet that was auto-created by this step (empty if you provided subnet_id).
+      Pass to the delete step as 'auto_subnet_id' to have it cleaned up automatically.
+    value: ${{ steps.acloud-github-runner.outputs.auto_subnet_id }}
+
+  auto_security_group_id:
+    description: >-
+      ID of the security group that was auto-created by this step (empty if you provided
+      security_group_id). Pass to the delete step as 'auto_security_group_id'.
+    value: ${{ steps.acloud-github-runner.outputs.auto_security_group_id }}
+
 runs:
   using: "composite"
   steps:
     - name: Install acloud-cli
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         if ! command -v acloud >/dev/null 2>&1; then
           ARCH=$(uname -m)
@@ -183,15 +229,14 @@ runs:
             aarch64|arm64) ACLOUD_ARCH="arm64" ;;
             *)             ACLOUD_ARCH="amd64"  ;;
           esac
-          URL="https://github.com/Arubacloud/acloud-cli/releases/latest/download/acloud-linux-${ACLOUD_ARCH}"
-          for attempt in 1 2 3; do
-            echo "Downloading acloud-cli (attempt ${attempt}/3)..."
-            curl -fsSL "$URL" -o /tmp/acloud && break
-            [[ $attempt -lt 3 ]] && sleep 10
-          done
-          [[ -f /tmp/acloud ]] || { echo "Failed to download acloud-cli after 3 attempts."; exit 1; }
-          chmod +x /tmp/acloud
+          echo "Downloading acloud-cli (latest)..."
+          gh release download \
+            --repo Arubacloud/acloud-cli \
+            --pattern "acloud_*_linux_${ACLOUD_ARCH}.tar.gz" \
+            --dir /tmp
+          tar -xzf /tmp/acloud_*_linux_${ACLOUD_ARCH}.tar.gz -C /tmp acloud
           sudo mv /tmp/acloud /usr/local/bin/acloud
+          rm -f /tmp/acloud_*_linux_${ACLOUD_ARCH}.tar.gz
         fi
 
     - name: Aruba Cloud GitHub Runner
@@ -210,10 +255,10 @@ runs:
         INPUT_ZONE:                 ${{ inputs.zone }}
         INPUT_FLAVOR:               ${{ inputs.flavor }}
         INPUT_IMAGE:                ${{ inputs.image }}
-        INPUT_VPC_URI:              ${{ inputs.vpc_uri }}
-        INPUT_SUBNET_URI:           ${{ inputs.subnet_uri }}
-        INPUT_SECURITY_GROUP_URI:   ${{ inputs.security_group_uri }}
-        INPUT_KEYPAIR_URI:          ${{ inputs.keypair_uri }}
+        INPUT_VPC_ID:               ${{ inputs.vpc_id }}
+        INPUT_SUBNET_ID:            ${{ inputs.subnet_id }}
+        INPUT_SECURITY_GROUP_ID:    ${{ inputs.security_group_id }}
+        INPUT_KEYPAIR_ID:           ${{ inputs.keypair_id }}
         INPUT_RUNNER_LABELS:        ${{ inputs.runner_labels }}
         INPUT_RUNNER_VERSION:       ${{ inputs.runner_version }}
         INPUT_RUNNER_DIR:           ${{ inputs.runner_dir }}
@@ -222,6 +267,9 @@ runs:
         INPUT_BOOT_DISK_TYPE:       ${{ inputs.boot_disk_type }}
         INPUT_BOOT_DISK_WAIT:       ${{ inputs.boot_disk_wait }}
         INPUT_BOOT_DISK_ID:         ${{ inputs.boot_disk_id }}
-        INPUT_RUNNER_WAIT:          ${{ inputs.runner_wait }}
-        INPUT_SERVER_WAIT:          ${{ inputs.server_wait }}
-        INPUT_SERVER_ID:            ${{ inputs.server_id }}
+        INPUT_RUNNER_WAIT:              ${{ inputs.runner_wait }}
+        INPUT_SERVER_WAIT:              ${{ inputs.server_wait }}
+        INPUT_SERVER_ID:                ${{ inputs.server_id }}
+        INPUT_AUTO_VPC_ID:              ${{ inputs.auto_vpc_id }}
+        INPUT_AUTO_SUBNET_ID:           ${{ inputs.auto_subnet_id }}
+        INPUT_AUTO_SECURITY_GROUP_ID:   ${{ inputs.auto_security_group_id }}

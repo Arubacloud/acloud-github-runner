@@ -16,10 +16,10 @@ On-demand self-hosted GitHub Actions runners on Aruba Cloud. Each workflow run p
 
 ### Authentication (CI/CD)
 ```sh
-acloud config set --client-id "$ACLOUD_CLIENT_ID" --client-secret "$ACLOUD_CLIENT_SECRET"
+ACLOUD_CLIENT_SECRET="$ACLOUD_CLIENT_SECRET" acloud config set --client-id "$ACLOUD_CLIENT_ID"
 acloud context set default --project-id "$ACLOUD_PROJECT_ID"
 ```
-Credentials are stored in `~/.acloud.yaml` (permissions `0600`).
+Credentials are stored in `~/.config/acloud/config.yaml` (XDG Base Directory, permissions `0600`).
 
 ### Key server commands
 ```sh
@@ -29,11 +29,11 @@ acloud compute cloudserver create \
   --region "ITBG-Bergamo" \
   --zone "ITBG-1" \
   --flavor "CSO4A8" \
-  --image "ubuntu-22.04" \
-  --vpc-uri "<uri>" \
-  --subnet-uri "<uri>" \
-  --security-group-uri "<uri>" \
-  --keypair-uri "<uri>" \
+  --boot-disk-id "<id>" \
+  --vpc-id "<id>" \
+  --subnet-id "<id>" \
+  --security-group-id "<id>" \
+  --keypair-id "<id>" \
   --user-data-file cloud-init.yml
 
 acloud compute cloudserver list

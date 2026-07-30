@@ -1,0 +1,50 @@
+{
+  "version.label": {
+    "message": "Prossima",
+    "description": "The label for version current"
+  },
+  "sidebar.mainSidebar.doc.intro.label": {
+    "message": "Introduzione",
+    "description": "The label for the doc item intro in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.doc.getting-started.label": {
+    "message": "Guida Rapida",
+    "description": "The label for the doc item getting-started in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.category.Usage.label": {
+    "message": "Utilizzo",
+    "description": "The label for category Usage in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.doc.usage-auto.label": {
+    "message": "Rete con Auto-Provisioning",
+    "description": "The label for the doc item usage-auto in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.doc.usage-existing.label": {
+    "message": "Porta la Tua Rete",
+    "description": "The label for the doc item usage-existing in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.category.Reference.label": {
+    "message": "Riferimento",
+    "description": "The label for category Reference in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.doc.reference.label": {
+    "message": "Input e Output",
+    "description": "The label for the doc item reference in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.doc.flavors.label": {
+    "message": "Flavor e Immagini",
+    "description": "The label for the doc item flavors in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.category.Project.label": {
+    "message": "Progetto",
+    "description": "The label for category Project in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.doc.contributing.label": {
+    "message": "Contribuire",
+    "description": "The label for the doc item contributing in sidebar mainSidebar"
+  },
+  "sidebar.mainSidebar.doc.changelog.label": {
+    "message": "Changelog",
+    "description": "The label for the doc item changelog in sidebar mainSidebar"
+  }
+}
