@@ -75,9 +75,9 @@ inputs:
   boot_disk_wait:
     description: >-
       Maximum number of 10-second polling attempts while waiting for the boot
-      disk to reach 'NotUsed' status (default: 30 = 5 minutes).
+      disk to reach 'NotUsed' status (default: 60 = 10 minutes).
     required: false
-    default: '30'
+    default: '60'
 
   boot_disk_id:
     description: >-
@@ -163,9 +163,9 @@ inputs:
   server_wait:
     description: >-
       Maximum number of 10-second polling attempts while waiting for the server
-      to reach 'Active' status (default: 30 = 5 minutes).
+      to reach 'Active' status (default: 60 = 10 minutes).
     required: false
-    default: '30'
+    default: '60'
 
   server_id:
     description: >-

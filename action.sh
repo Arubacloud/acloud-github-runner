@@ -167,7 +167,7 @@ MY_BOOT_DISK_SIZE=${INPUT_BOOT_DISK_SIZE:-20}
 [[ "$MY_BOOT_DISK_SIZE" =~ ^[0-9]+$ ]] || exit_with_failure "boot_disk_size must be an integer."
 
 MY_BOOT_DISK_TYPE=${INPUT_BOOT_DISK_TYPE:-"Performance"}
-MY_BOOT_DISK_WAIT=${INPUT_BOOT_DISK_WAIT:-30}
+MY_BOOT_DISK_WAIT=${INPUT_BOOT_DISK_WAIT:-60}
 [[ "$MY_BOOT_DISK_WAIT" =~ ^[0-9]+$ ]] || exit_with_failure "boot_disk_wait must be an integer."
 
 MY_RUNNER_LABELS=${INPUT_RUNNER_LABELS:-"self-hosted,linux,acloud"}
@@ -184,7 +184,7 @@ MY_PRE_RUNNER_SCRIPT=${INPUT_PRE_RUNNER_SCRIPT:-""}
 MY_RUNNER_WAIT=${INPUT_RUNNER_WAIT:-60}
 [[ "$MY_RUNNER_WAIT" =~ ^[0-9]+$ ]] || exit_with_failure "runner_wait must be an integer."
 
-MY_SERVER_WAIT=${INPUT_SERVER_WAIT:-30}
+MY_SERVER_WAIT=${INPUT_SERVER_WAIT:-60}
 [[ "$MY_SERVER_WAIT" =~ ^[0-9]+$ ]] || exit_with_failure "server_wait must be an integer."
 
 # Delete-mode inputs.
