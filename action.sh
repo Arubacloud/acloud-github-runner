@@ -455,11 +455,9 @@ SERVER_CREATE_MAX_ATTEMPTS=3
 SERVER_CREATE_RETRY_WAIT=15
 
 _run_cloudserver_create() {
-	local extra_flags=("$@")
 	local keypair_flag=()
 	[[ -n "$MY_KEYPAIR_ID" ]] && keypair_flag=(--keypair-id "$MY_KEYPAIR_ID")
 	acloud compute cloudserver create \
-		"${extra_flags[@]}" \
 		--name               "$MY_NAME" \
 		--region             "$MY_REGION" \
 		--zone               "$MY_ZONE" \
