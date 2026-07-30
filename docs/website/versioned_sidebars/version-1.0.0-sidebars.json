@@ -1,0 +1,38 @@
+{
+  "version-1.0.0/mainSidebar": [
+    {
+      "type": "doc",
+      "id": "version-1.0.0/intro",
+      "label": "Introduction"
+    },
+    {
+      "type": "doc",
+      "id": "version-1.0.0/getting-started",
+      "label": "Getting Started"
+    },
+    {
+      "type": "category",
+      "label": "Usage",
+      "items": [
+        "version-1.0.0/usage-auto",
+        "version-1.0.0/usage-existing"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Reference",
+      "items": [
+        "version-1.0.0/reference",
+        "version-1.0.0/flavors"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Project",
+      "items": [
+        "version-1.0.0/contributing",
+        "version-1.0.0/changelog"
+      ]
+    }
+  ]
+}
