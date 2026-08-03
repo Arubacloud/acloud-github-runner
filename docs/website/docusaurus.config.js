@@ -166,7 +166,7 @@ const config = {
               },
               {
                 label: 'Changelog',
-                href: 'https://github.com/Arubacloud/acloud-github-runner/releases',
+                to: '/next/changelog',
               },
             ],
           },
