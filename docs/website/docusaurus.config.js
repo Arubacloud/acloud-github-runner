@@ -166,7 +166,7 @@ const config = {
               },
               {
                 label: 'Changelog',
-                to: '/next/changelog',
+                to: '/changelog',
               },
             ],
           },
