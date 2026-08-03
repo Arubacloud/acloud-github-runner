@@ -1,4 +1,8 @@
-# Changelog
+---
+id: changelog
+title: Changelog
+sidebar_label: Changelog
+---
 
 All notable changes to this project will be documented in this file.
 
